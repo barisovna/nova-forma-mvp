@@ -127,6 +127,13 @@ body {
   opacity: 0.55;
   cursor: not-allowed;
   filter: grayscale(0.15);
+  position: relative;
+}
+
+.menu-step[disabled]::before {
+  content: "\1F512";
+  font-size: 0.7rem;
+  margin-right: 3px;
 }
 
 /* ── Mission Card ── */
@@ -594,6 +601,16 @@ button:active {
   box-shadow: 0 4px 8px rgba(20, 136, 120, 0.2);
 }
 
+button:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+.menu-step:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
 button.is-loading {
   pointer-events: none;
   opacity: 0.7;
@@ -620,26 +637,7 @@ button.is-loading::before {
   background: linear-gradient(120deg, #64748b, #475569);
 }
 
-.native-menu .menu-step {
-  border: 1px solid #f3d58e;
-  border-radius: 999px;
-  padding: 8px 12px;
-  background: #fff8e1;
-  color: #7c4a03;
-  box-shadow: none;
-}
-
-.native-menu .menu-step.is-active {
-  border-color: #0f766e;
-  color: #ffffff;
-  background: linear-gradient(135deg, #0f766e, #14b8a6);
-}
-
-.native-menu .menu-step[disabled] {
-  opacity: 0.55;
-  cursor: not-allowed;
-  filter: grayscale(0.15);
-}
+/* menu-step styles defined above in Step Navigation section */
 
 .button-row {
   display: flex;
@@ -696,6 +694,33 @@ button.is-loading::before {
   font-size: 0.87rem;
   transition: left 700ms cubic-bezier(0.22, 1, 0.36, 1), top 700ms cubic-bezier(0.22, 1, 0.36, 1), opacity 450ms ease;
   pointer-events: auto;
+}
+
+.agent-bubble.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.8);
+  transition: opacity 250ms ease, transform 250ms ease;
+}
+
+.agent-minimize {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid #e2c56e;
+  background: #fff7e2;
+  color: #8b6914;
+  font-size: 0.7rem;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  pointer-events: auto;
+  padding: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  line-height: 1;
 }
 
 .agent-bubble.typing::after {
@@ -961,6 +986,48 @@ button.is-loading::before {
   100% { opacity: 1; }
 }
 
+/* ── Skeleton Loading ── */
+.skeleton-pulse {
+  position: relative;
+  overflow: hidden;
+  color: transparent !important;
+}
+
+.skeleton-pulse::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #f0ead6 25%, #faf5e4 50%, #f0ead6 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.game-card.is-loading .stat-value,
+.game-card.is-loading .xp-fill,
+.game-card.is-loading .quest-list {
+  color: transparent;
+}
+
+.leaderboard-card.is-loading .leaderboard-list {
+  min-height: 120px;
+}
+
+.leaderboard-card.is-loading .leaderboard-list::before {
+  content: "";
+  display: block;
+  height: 120px;
+  border-radius: 11px;
+  background: linear-gradient(90deg, #f0ead6 25%, #faf5e4 50%, #f0ead6 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s ease-in-out infinite;
+}
+
 /* ── Responsive ── */
 @media (max-width: 900px) {
   .stats-grid {
@@ -970,7 +1037,7 @@ button.is-loading::before {
 
 @media (max-width: 720px) {
   .container {
-    margin-bottom: 160px;
+    margin-bottom: 110px;
   }
 
   .native-menu {
@@ -980,7 +1047,10 @@ button.is-loading::before {
 
   .menu-step {
     font-size: 0.82rem;
-    padding: 7px 10px;
+    padding: 10px 12px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
   }
 
   .hero {
@@ -988,18 +1058,38 @@ button.is-loading::before {
     padding: 16px;
   }
 
+  .agent-layer {
+    /* On mobile: agent anchored to bottom-right, not following steps */
+    pointer-events: none;
+  }
+
   .agent-bubble {
-    max-width: 210px;
-    font-size: 0.8rem;
+    max-width: 200px;
+    font-size: 0.78rem;
+    left: auto !important;
+    right: 12px;
+    bottom: 100px;
+    top: auto !important;
+    position: fixed;
   }
 
   .lemon-agent {
-    width: 92px;
-    height: 92px;
+    width: 72px;
+    height: 72px;
+    left: auto !important;
+    right: 14px;
+    bottom: 18px;
+    top: auto !important;
+    position: fixed;
   }
 
   .mission-card button {
     width: 100%;
+    min-height: 44px;
+  }
+
+  button {
+    min-height: 44px;
   }
 
   .leaderboard-row {
@@ -1016,5 +1106,31 @@ button.is-loading::before {
   .toast-container {
     right: 8px;
     top: 8px;
+  }
+}
+
+/* ── Reduced Motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .confetti-canvas {
+    display: none;
+  }
+
+  .lemon-agent {
+    animation: none;
+  }
+
+  .xp-fill::after {
+    animation: none;
+  }
+
+  .leaderboard-live {
+    animation: none;
+    opacity: 1;
   }
 }

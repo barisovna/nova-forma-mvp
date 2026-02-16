@@ -109,7 +109,11 @@
           </label>
           <label>
             Цель
-            <input type="text" id="goal" placeholder="похудеть / поддерживать / набор" />
+            <select id="goal">
+              <option value="loss">Похудение</option>
+              <option value="maintain" selected>Поддержание веса</option>
+              <option value="gain">Набор массы</option>
+            </select>
           </label>
           <label>
             Целевые ккал
@@ -222,7 +226,10 @@
     </main>
 
     <div class="agent-layer" aria-live="polite">
-      <div id="agentBubble" class="agent-bubble">Я живой лимон. Начнем с профиля.</div>
+      <div id="agentBubble" class="agent-bubble">
+        Я живой лимон. Начнем с профиля.
+        <button type="button" class="agent-minimize" id="agentMinimize" aria-label="Скрыть">&times;</button>
+      </div>
       <div class="lemon-agent" id="lemonAgent">
         <span class="agent-glow"></span>
         <img id="lemonImage" src="/assets/limon/limonfoto1.png" alt="Лимон AI агент" loading="lazy" />

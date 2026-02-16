@@ -171,10 +171,13 @@ const el = {
   lemonVideo: document.getElementById("lemonVideo"),
   agentBubble: document.getElementById("agentBubble"),
   toastContainer: document.getElementById("toastContainer"),
-  confettiCanvas: document.getElementById("confettiCanvas")
+  confettiCanvas: document.getElementById("confettiCanvas"),
+  agentMinimize: document.getElementById("agentMinimize")
 };
 
 /* ── Toast System ── */
+const MAX_TOASTS = 3;
+
 function showToast(message, type = "xp", icon = "") {
   const icons = {
     xp: "\u2B50",
@@ -184,12 +187,20 @@ function showToast(message, type = "xp", icon = "") {
     quest: "\u2705",
     error: "\u26A0\uFE0F"
   };
+  // Remove oldest toasts if at capacity
+  const existing = el.toastContainer.querySelectorAll(".toast:not(.toast-out)");
+  if (existing.length >= MAX_TOASTS) {
+    for (let i = 0; i <= existing.length - MAX_TOASTS; i++) {
+      dismissToast(existing[i]);
+    }
+  }
+
   const toast = document.createElement("div");
   toast.className = `toast toast-${type}`;
   toast.innerHTML = `<span class="toast-icon">${icon || icons[type] || icons.xp}</span><span>${message}</span>`;
   toast.addEventListener("click", () => dismissToast(toast));
   el.toastContainer.appendChild(toast);
-  setTimeout(() => dismissToast(toast), 3500);
+  setTimeout(() => dismissToast(toast), 3000);
 }
 
 function dismissToast(toast) {
@@ -200,6 +211,7 @@ function dismissToast(toast) {
 
 /* ── Confetti System ── */
 function launchConfetti(duration = 2000) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const canvas = el.confettiCanvas;
   const ctx = canvas.getContext("2d");
   canvas.width = window.innerWidth;
@@ -339,16 +351,7 @@ function saveMilestoneMemory() {
 /* ── Goal Detection ── */
 function detectGoalType(goalRaw) {
   const value = String(goalRaw || "").toLowerCase().trim();
-  if (!value) return "balance";
-  if (["loss", "maintain", "gain", "balance"].includes(value)) return value;
-
-  const lossKeywords = ["\u043f\u043e\u0445\u0443\u0434", "\u0441\u0431\u0440\u043e\u0441", "\u0441\u0436\u0435\u0447", "\u0434\u0435\u0444\u0438\u0446\u0438\u0442", "weight loss", "lose", "fat loss", "slim"];
-  const maintainKeywords = ["\u043f\u043e\u0434\u0434\u0435\u0440\u0436", "\u0443\u0434\u0435\u0440\u0436", "\u0441\u0442\u0430\u0431", "\u0431\u0430\u043b\u0430\u043d\u0441", "maintain", "maintenance", "keep"];
-  const gainKeywords = ["\u043d\u0430\u0431\u043e\u0440", "\u043c\u0430\u0441\u0441\u0430", "\u043f\u0440\u0438\u0431\u0430\u0432", "bulk", "gain", "muscle"];
-
-  if (lossKeywords.some((k) => value.includes(k))) return "loss";
-  if (maintainKeywords.some((k) => value.includes(k))) return "maintain";
-  if (gainKeywords.some((k) => value.includes(k))) return "gain";
+  if (["loss", "maintain", "gain"].includes(value)) return value;
   return "balance";
 }
 
@@ -518,6 +521,13 @@ function getUnlockedStepsFromQuests(quests) {
   return STEP_ORDER.slice(0, nextIndex + 1);
 }
 
+const LOCK_HINTS = {
+  "step-plan": "Сначала создайте профиль",
+  "step-meal": "Сначала сгенерируйте план",
+  "step-subscription": "Сначала добавьте приём пищи",
+  "step-progress": "Сначала выберите тариф"
+};
+
 function setUnlockedSteps(stepIds) {
   const normalized = STEP_ORDER.filter((stepId) => stepIds.includes(stepId));
   state.unlockedStepIds = normalized.length ? normalized : ["step-onboard"];
@@ -527,6 +537,7 @@ function setUnlockedSteps(stepIds) {
     const unlocked = state.unlockedStepIds.includes(target);
     button.disabled = !unlocked;
     button.classList.toggle("is-locked", !unlocked);
+    button.title = unlocked ? "" : (LOCK_HINTS[target] || "Пройдите предыдущие шаги");
   }
 }
 
@@ -541,7 +552,7 @@ function renderJourney(quests, nextStep) {
 
 function renderLeaderboard(model) {
   const me = {
-    name: (model.user && model.user.name ? model.user.name : "\u0412\u044b"),
+    name: (model.user && model.user.name ? model.user.name : "Вы"),
     score:
       Number(model.points || 0) +
       Number(model.streak || 0) * 14 +
@@ -550,13 +561,30 @@ function renderLeaderboard(model) {
     isUser: true
   };
 
+  el.leaderboardList.innerHTML = "";
+
+  // If user has no score yet, show motivational placeholder
+  if (me.score === 0) {
+    const placeholder = document.createElement("li");
+    placeholder.className = "leaderboard-row is-user";
+    placeholder.innerHTML = `
+      <span class="leader-rank">?</span>
+      <span>
+        <strong class="leader-name">Пройдите первые шаги</strong>
+        <small class="leader-score">чтобы попасть в таблицу лидеров</small>
+      </span>
+      <strong>0 XP</strong>
+    `;
+    el.leaderboardList.appendChild(placeholder);
+    return;
+  }
+
   const rows = [...LEADERBOARD_RIVALS, me].sort((a, b) => b.score - a.score);
   const top = rows.slice(0, 5);
   if (!top.some((row) => row.isUser)) {
     top[top.length - 1] = me;
   }
 
-  el.leaderboardList.innerHTML = "";
   top.forEach((row, index) => {
     const item = document.createElement("li");
     item.className = `leaderboard-row${row.isUser ? " is-user" : ""}`;
@@ -566,7 +594,7 @@ function renderLeaderboard(model) {
       <span class="leader-rank">${rankDisplay}</span>
       <span>
         <strong class="leader-name">${row.name}</strong>
-        <small class="leader-score">${row.isUser ? "\u0432\u0430\u0448 \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442" : "\u0438\u0433\u0440\u043e\u043a \u043b\u0438\u0433\u0438"}</small>
+        <small class="leader-score">${row.isUser ? "ваш результат" : "игрок лиги"}</small>
       </span>
       <strong>${row.score} XP</strong>
     `;
@@ -770,7 +798,11 @@ function setLemonMood(mood, emotionKey = "") {
 }
 
 function setAgentBubble(text) {
+  el.agentBubble.classList.remove("is-hidden");
+  // Preserve the minimize button when updating text
+  const minBtn = el.agentMinimize;
   el.agentBubble.textContent = text;
+  el.agentBubble.appendChild(minBtn);
 }
 
 function clamp(value, min, max) {
@@ -1104,13 +1136,21 @@ for (const button of el.menuSteps) {
 
 el.missionAction.addEventListener("click", focusCurrentStepAction);
 
-// Lemon click interaction
+// Minimize agent bubble
+el.agentMinimize.addEventListener("click", (e) => {
+  e.stopPropagation();
+  el.agentBubble.classList.add("is-hidden");
+});
+
+// Tap lemon to re-show bubble (on mobile)
+
+
+// Lemon click interaction — also re-shows bubble if hidden
 el.lemonAgent.addEventListener("click", () => {
   const phrases = state.clickPhrases;
   const phrase = phrases[Math.floor(Math.random() * phrases.length)];
   setAgentBubble(phrase);
   agentReact("win");
-  // Cycle random mood on click
   const moods = ["idle", "guide", "focus", "win"];
   const mood = moods[Math.floor(Math.random() * moods.length)];
   setLemonMood(mood, `click:${Date.now()}`);
@@ -1152,6 +1192,11 @@ if ("serviceWorker" in navigator) {
 /* ── Bootstrap ── */
 setActiveUser(state.userId);
 hideLemonVideo();
+
+// Show skeleton loading
+document.getElementById("step-game").classList.add("is-loading");
+document.getElementById("step-leaderboard").classList.add("is-loading");
+
 const bootstrap = renderGameCenter(null);
 setUnlockedSteps(["step-onboard"]);
 renderJourney(bootstrap.quests, "step-onboard");
@@ -1163,5 +1208,8 @@ placeAgentAt(state.activeStep, {
   emotionKey: `boot:${state.activeStep}`
 });
 loadHealthAndConfig();
-refreshProgress("progress");
+refreshProgress("progress").then(() => {
+  document.getElementById("step-game").classList.remove("is-loading");
+  document.getElementById("step-leaderboard").classList.remove("is-loading");
+});
 refreshEvents();
