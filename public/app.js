@@ -2,6 +2,7 @@ const state = {
   userId: localStorage.getItem("userId") || "",
   milestoneMemory: loadMilestoneMemory(),
   lastProgressResponse: null,
+  goalType: localStorage.getItem("goalType") || "balance",
   activeStep: localStorage.getItem("activeStep") || "step-onboard",
   unlockedStepIds: ["step-onboard"],
   currentAnchor: "step-onboard",
@@ -19,24 +20,55 @@ if (!DEV_MODE) {
 }
 
 const LEMON_EMOTION_LIBRARY = {
-  idle: [
-    "/assets/limon/limonfoto1.png",
-    "/assets/limon/limonid-okay.png",
-    "/assets/limon/limonid-love.png"
-  ],
-  guide: [
-    "/assets/limon/limonid-with-a-book.png",
-    "/assets/limon/limonid-class.png",
-    "/assets/limon/limonid-question.png"
-  ],
-  focus: ["/assets/limon/limonid-keen.png", "/assets/limon/limonid-language.png"],
-  win: [
-    "/assets/limon/limonid-class-star.png",
-    "/assets/limon/limonid-muscle-strength.png",
-    "/assets/limon/limonid-love2.png",
-    "/assets/limon/limonid-laughter.png"
-  ],
-  error: ["/assets/limon/limonid-get-angry.png", "/assets/limon/limonid-steaming-screaming.png"]
+  balance: {
+    idle: [
+      "/assets/limon/limonfoto1.png",
+      "/assets/limon/limonid-okay.png",
+      "/assets/limon/limonid-love.png"
+    ],
+    guide: [
+      "/assets/limon/limonid-with-a-book.png",
+      "/assets/limon/limonid-class.png",
+      "/assets/limon/limonid-question.png"
+    ],
+    focus: ["/assets/limon/limonid-keen.png", "/assets/limon/limonid-language.png"],
+    win: [
+      "/assets/limon/limonid-class-star.png",
+      "/assets/limon/limonid-muscle-strength.png",
+      "/assets/limon/limonid-love2.png",
+      "/assets/limon/limonid-laughter.png"
+    ],
+    error: ["/assets/limon/limonid-get-angry.png", "/assets/limon/limonid-steaming-screaming.png"]
+  },
+  loss: {
+    idle: ["/assets/limon/limonid-okay.png", "/assets/limon/limonid-question.png"],
+    guide: ["/assets/limon/limonid-with-a-book.png", "/assets/limon/limonid-class.png"],
+    focus: ["/assets/limon/limonid-keen.png", "/assets/limon/limonid-language.png"],
+    win: [
+      "/assets/limon/limonid-class-star.png",
+      "/assets/limon/limonid-muscle-strength.png",
+      "/assets/limon/limonid-laughter.png"
+    ],
+    error: ["/assets/limon/limonid-get-angry.png", "/assets/limon/limonid-steaming-screaming.png"]
+  },
+  maintain: {
+    idle: ["/assets/limon/limonfoto1.png", "/assets/limon/limonid-love.png", "/assets/limon/limonid-okay.png"],
+    guide: ["/assets/limon/limonid-class.png", "/assets/limon/limonid-with-a-book.png"],
+    focus: ["/assets/limon/limonid-question.png", "/assets/limon/limonid-language.png"],
+    win: ["/assets/limon/limonid-love2.png", "/assets/limon/limonid-laughter.png", "/assets/limon/limonid-class-star.png"],
+    error: ["/assets/limon/limonid-get-angry.png", "/assets/limon/limonid-steaming-screaming.png"]
+  },
+  gain: {
+    idle: ["/assets/limon/limonfoto2.png", "/assets/limon/limonid-love2.png"],
+    guide: ["/assets/limon/limonid-class-star.png", "/assets/limon/limonid-with-a-book.png"],
+    focus: ["/assets/limon/limonid-muscle-strength.png", "/assets/limon/limonid-keen.png"],
+    win: [
+      "/assets/limon/limonid-muscle-strength.png",
+      "/assets/limon/limonid-class-star.png",
+      "/assets/limon/limonid-laughter.png"
+    ],
+    error: ["/assets/limon/limonid-get-angry.png", "/assets/limon/limonid-steaming-screaming.png"]
+  }
 };
 
 const LEMON_DEFAULT_IMAGE = "/assets/limon/limonfoto1.png";
@@ -134,6 +166,60 @@ function saveMilestoneMemory() {
   localStorage.setItem("lemonMilestones", JSON.stringify(state.milestoneMemory));
 }
 
+function detectGoalType(goalRaw) {
+  const value = String(goalRaw || "").toLowerCase().trim();
+  if (!value) {
+    return "balance";
+  }
+  if (["loss", "maintain", "gain", "balance"].includes(value)) {
+    return value;
+  }
+
+  const lossKeywords = [
+    "\u043f\u043e\u0445\u0443\u0434",
+    "\u0441\u0431\u0440\u043e\u0441",
+    "\u0441\u0436\u0435\u0447",
+    "\u0434\u0435\u0444\u0438\u0446\u0438\u0442",
+    "weight loss",
+    "lose",
+    "fat loss",
+    "slim"
+  ];
+  const maintainKeywords = [
+    "\u043f\u043e\u0434\u0434\u0435\u0440\u0436",
+    "\u0443\u0434\u0435\u0440\u0436",
+    "\u0441\u0442\u0430\u0431",
+    "\u0431\u0430\u043b\u0430\u043d\u0441",
+    "maintain",
+    "maintenance",
+    "keep"
+  ];
+  const gainKeywords = [
+    "\u043d\u0430\u0431\u043e\u0440",
+    "\u043c\u0430\u0441\u0441\u0430",
+    "\u043f\u0440\u0438\u0431\u0430\u0432",
+    "bulk",
+    "gain",
+    "muscle"
+  ];
+
+  if (lossKeywords.some((keyword) => value.includes(keyword))) {
+    return "loss";
+  }
+  if (maintainKeywords.some((keyword) => value.includes(keyword))) {
+    return "maintain";
+  }
+  if (gainKeywords.some((keyword) => value.includes(keyword))) {
+    return "gain";
+  }
+  return "balance";
+}
+
+function setGoalType(goalRaw) {
+  state.goalType = detectGoalType(goalRaw);
+  localStorage.setItem("goalType", state.goalType);
+}
+
 function setActiveUser(userId) {
   state.userId = userId || "";
   if (state.userId) {
@@ -144,6 +230,8 @@ function setActiveUser(userId) {
     el.activeUserBadge.textContent = "Профиль не создан";
   }
 }
+
+setGoalType(state.goalType);
 
 function pretty(value) {
   return JSON.stringify(value, null, 2);
@@ -378,11 +466,13 @@ function hashString(value) {
 }
 
 function pickEmotionImage(mood, emotionKey = "") {
-  const variants = LEMON_EMOTION_LIBRARY[mood] || LEMON_EMOTION_LIBRARY.idle || [LEMON_DEFAULT_IMAGE];
+  const goalPool = LEMON_EMOTION_LIBRARY[state.goalType] || LEMON_EMOTION_LIBRARY.balance;
+  const defaultPool = LEMON_EMOTION_LIBRARY.balance;
+  const variants = (goalPool && goalPool[mood]) || (defaultPool && defaultPool[mood]) || [LEMON_DEFAULT_IMAGE];
   if (!variants.length) {
     return LEMON_DEFAULT_IMAGE;
   }
-  const seed = `${state.userId || "guest"}|${mood}|${emotionKey}`;
+  const seed = `${state.userId || "guest"}|${state.goalType}|${mood}|${emotionKey}`;
   const index = hashString(seed) % variants.length;
   return variants[index];
 }
@@ -544,6 +634,7 @@ function findClosestStepInView() {
 
 function syncAgentFromProgress(progressResponse, reason = "progress") {
   const { model, quests } = renderGameCenter(progressResponse);
+  setGoalType(model.user && model.user.goal ? model.user.goal : "");
   const nextStep = getNextStepFromQuests(quests);
   const unlockedSteps = getUnlockedStepsFromQuests(quests);
   const mood = getMoodByReason(reason, model, nextStep);
@@ -634,6 +725,7 @@ el.onboardForm.addEventListener("submit", async (event) => {
     goal: form.querySelector("#goal").value.trim(),
     caloriesTarget: Number(form.querySelector("#caloriesTarget").value)
   };
+  setGoalType(payload.goal);
 
   try {
     const data = await api("/api/users/onboard", {
