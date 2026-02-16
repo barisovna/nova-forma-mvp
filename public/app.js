@@ -1,3 +1,4 @@
+/* ── State ── */
 const state = {
   userId: localStorage.getItem("userId") || "",
   milestoneMemory: loadMilestoneMemory(),
@@ -7,7 +8,22 @@ const state = {
   unlockedStepIds: ["step-onboard"],
   currentAnchor: "step-onboard",
   lastAutoMoveAt: 0,
-  lastEmotionImage: ""
+  lastEmotionImage: "",
+  prevPoints: 0,
+  prevLevel: 1,
+  prevStreak: 0,
+  prevAchievements: [],
+  prevQuestsDone: new Set(),
+  recovering: false,
+  clickPhrases: [
+    "Хей, не щекотись!",
+    "Лимончик бодр и готов!",
+    "Жми дальше — мы в ритме!",
+    "Я слежу за твоей серией!",
+    "Вперёд к новому уровню!",
+    "Кислый, но мотивированный!",
+    "Не сдавайся, ты в топе!"
+  ]
 };
 
 const IS_LOCAL = location.hostname === "localhost" || location.hostname === "127.0.0.1";
@@ -19,6 +35,7 @@ if (!DEV_MODE) {
   });
 }
 
+/* ── Emotion Library ── */
 const LEMON_EMOTION_LIBRARY = {
   balance: {
     idle: [
@@ -110,6 +127,15 @@ const STEP_HINTS = {
   "step-progress": "Проверь прогресс и журнал. Я подскажу следующую цель."
 };
 
+const ACHIEVEMENT_NAMES = {
+  first_plan: "Первый план",
+  first_meal: "Первый приём",
+  streak_3: "Серия 3 дня",
+  streak_7: "Серия 7 дней",
+  meal_10: "10 приёмов"
+};
+
+/* ── DOM Cache ── */
 const el = {
   healthBadge: document.getElementById("healthBadge"),
   providerBadge: document.getElementById("providerBadge"),
@@ -143,21 +169,165 @@ const el = {
   lemonAgent: document.getElementById("lemonAgent"),
   lemonImage: document.getElementById("lemonImage"),
   lemonVideo: document.getElementById("lemonVideo"),
-  agentBubble: document.getElementById("agentBubble")
+  agentBubble: document.getElementById("agentBubble"),
+  toastContainer: document.getElementById("toastContainer"),
+  confettiCanvas: document.getElementById("confettiCanvas")
 };
 
+/* ── Toast System ── */
+function showToast(message, type = "xp", icon = "") {
+  const icons = {
+    xp: "\u2B50",
+    level: "\u{1F680}",
+    achievement: "\u{1F3C6}",
+    streak: "\u{1F525}",
+    quest: "\u2705",
+    error: "\u26A0\uFE0F"
+  };
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `<span class="toast-icon">${icon || icons[type] || icons.xp}</span><span>${message}</span>`;
+  toast.addEventListener("click", () => dismissToast(toast));
+  el.toastContainer.appendChild(toast);
+  setTimeout(() => dismissToast(toast), 3500);
+}
+
+function dismissToast(toast) {
+  if (toast.classList.contains("toast-out")) return;
+  toast.classList.add("toast-out");
+  toast.addEventListener("animationend", () => toast.remove());
+}
+
+/* ── Confetti System ── */
+function launchConfetti(duration = 2000) {
+  const canvas = el.confettiCanvas;
+  const ctx = canvas.getContext("2d");
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const particles = [];
+  const colors = ["#f59e0b", "#22c55e", "#8b5cf6", "#ef4444", "#0ea5e9", "#f97316", "#ec4899"];
+  const startTime = Date.now();
+
+  for (let i = 0; i < 120; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: -10 - Math.random() * 40,
+      w: 4 + Math.random() * 6,
+      h: 8 + Math.random() * 10,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      vx: (Math.random() - 0.5) * 4,
+      vy: 2 + Math.random() * 4,
+      spin: (Math.random() - 0.5) * 0.2,
+      angle: Math.random() * Math.PI * 2
+    });
+  }
+
+  function frame() {
+    const elapsed = Date.now() - startTime;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const alpha = elapsed > duration - 500 ? Math.max(0, (duration - elapsed) / 500) : 1;
+
+    for (const p of particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.08;
+      p.angle += p.spin;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+
+    if (elapsed < duration) {
+      requestAnimationFrame(frame);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  requestAnimationFrame(frame);
+}
+
+/* ── Floating XP Numbers ── */
+function floatXP(amount, sourceEl) {
+  const rect = sourceEl ? sourceEl.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2 };
+  const floater = document.createElement("div");
+  floater.className = "float-xp";
+  floater.textContent = `+${amount} XP`;
+  floater.style.left = `${rect.left + 10}px`;
+  floater.style.top = `${rect.top}px`;
+  document.body.appendChild(floater);
+  floater.addEventListener("animationend", () => floater.remove());
+}
+
+/* ── Level-Up Overlay ── */
+function showLevelUp(level) {
+  const overlay = document.createElement("div");
+  overlay.className = "levelup-overlay";
+  overlay.innerHTML = `
+    <div class="levelup-badge">
+      <h2>LEVEL UP!</h2>
+      <div class="level-num">${level}</div>
+      <p>Новый уровень достигнут</p>
+    </div>
+  `;
+  overlay.addEventListener("click", () => overlay.remove());
+  document.body.appendChild(overlay);
+  launchConfetti(2500);
+  setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 4000);
+}
+
+/* ── Agent Reactions ── */
+function agentReact(type) {
+  el.lemonAgent.classList.remove("react-bounce", "react-shake");
+  void el.lemonAgent.offsetWidth;
+  el.lemonAgent.classList.add(type === "error" ? "react-shake" : "react-bounce");
+  setTimeout(() => el.lemonAgent.classList.remove("react-bounce", "react-shake"), 600);
+}
+
+/* ── Stat Pop Animation ── */
+function popStat(element) {
+  element.classList.remove("pop");
+  void element.offsetWidth;
+  element.classList.add("pop");
+  setTimeout(() => element.classList.remove("pop"), 400);
+}
+
+/* ── Button Loading State ── */
+function setButtonLoading(button, loading) {
+  if (loading) {
+    button.classList.add("is-loading");
+    button.dataset.originalText = button.textContent;
+    button.textContent = "Загрузка...";
+  } else {
+    button.classList.remove("is-loading");
+    button.textContent = button.dataset.originalText || button.textContent;
+  }
+}
+
+/* ── Debounce Utility ── */
+function debounce(fn, ms) {
+  let timer;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), ms);
+  };
+}
+
+/* ── Milestone Memory ── */
 function loadMilestoneMemory() {
   try {
     const raw = localStorage.getItem("lemonMilestones");
-    if (!raw) {
-      return {};
-    }
+    if (!raw) return {};
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") {
-      return parsed;
-    }
+    if (parsed && typeof parsed === "object") return parsed;
   } catch {
-    // ignore malformed local state
+    // ignore
   }
   return {};
 }
@@ -166,52 +336,19 @@ function saveMilestoneMemory() {
   localStorage.setItem("lemonMilestones", JSON.stringify(state.milestoneMemory));
 }
 
+/* ── Goal Detection ── */
 function detectGoalType(goalRaw) {
   const value = String(goalRaw || "").toLowerCase().trim();
-  if (!value) {
-    return "balance";
-  }
-  if (["loss", "maintain", "gain", "balance"].includes(value)) {
-    return value;
-  }
+  if (!value) return "balance";
+  if (["loss", "maintain", "gain", "balance"].includes(value)) return value;
 
-  const lossKeywords = [
-    "\u043f\u043e\u0445\u0443\u0434",
-    "\u0441\u0431\u0440\u043e\u0441",
-    "\u0441\u0436\u0435\u0447",
-    "\u0434\u0435\u0444\u0438\u0446\u0438\u0442",
-    "weight loss",
-    "lose",
-    "fat loss",
-    "slim"
-  ];
-  const maintainKeywords = [
-    "\u043f\u043e\u0434\u0434\u0435\u0440\u0436",
-    "\u0443\u0434\u0435\u0440\u0436",
-    "\u0441\u0442\u0430\u0431",
-    "\u0431\u0430\u043b\u0430\u043d\u0441",
-    "maintain",
-    "maintenance",
-    "keep"
-  ];
-  const gainKeywords = [
-    "\u043d\u0430\u0431\u043e\u0440",
-    "\u043c\u0430\u0441\u0441\u0430",
-    "\u043f\u0440\u0438\u0431\u0430\u0432",
-    "bulk",
-    "gain",
-    "muscle"
-  ];
+  const lossKeywords = ["\u043f\u043e\u0445\u0443\u0434", "\u0441\u0431\u0440\u043e\u0441", "\u0441\u0436\u0435\u0447", "\u0434\u0435\u0444\u0438\u0446\u0438\u0442", "weight loss", "lose", "fat loss", "slim"];
+  const maintainKeywords = ["\u043f\u043e\u0434\u0434\u0435\u0440\u0436", "\u0443\u0434\u0435\u0440\u0436", "\u0441\u0442\u0430\u0431", "\u0431\u0430\u043b\u0430\u043d\u0441", "maintain", "maintenance", "keep"];
+  const gainKeywords = ["\u043d\u0430\u0431\u043e\u0440", "\u043c\u0430\u0441\u0441\u0430", "\u043f\u0440\u0438\u0431\u0430\u0432", "bulk", "gain", "muscle"];
 
-  if (lossKeywords.some((keyword) => value.includes(keyword))) {
-    return "loss";
-  }
-  if (maintainKeywords.some((keyword) => value.includes(keyword))) {
-    return "maintain";
-  }
-  if (gainKeywords.some((keyword) => value.includes(keyword))) {
-    return "gain";
-  }
+  if (lossKeywords.some((k) => value.includes(k))) return "loss";
+  if (maintainKeywords.some((k) => value.includes(k))) return "maintain";
+  if (gainKeywords.some((k) => value.includes(k))) return "gain";
   return "balance";
 }
 
@@ -224,10 +361,42 @@ function setActiveUser(userId) {
   state.userId = userId || "";
   if (state.userId) {
     localStorage.setItem("userId", state.userId);
-    el.activeUserBadge.textContent = `Профиль: ${state.userId.slice(0, 8)}...`;
+    el.activeUserBadge.textContent = `\u041f\u0440\u043e\u0444\u0438\u043b\u044c: ${state.userId.slice(0, 8)}...`;
   } else {
     localStorage.removeItem("userId");
-    el.activeUserBadge.textContent = "Профиль не создан";
+    el.activeUserBadge.textContent = "\u041f\u0440\u043e\u0444\u0438\u043b\u044c \u043d\u0435 \u0441\u043e\u0437\u0434\u0430\u043d";
+  }
+}
+
+function saveUserProfile(name, goal, caloriesTarget) {
+  localStorage.setItem("userProfile", JSON.stringify({ name, goal, caloriesTarget }));
+}
+
+function getSavedProfile() {
+  try {
+    const raw = localStorage.getItem("userProfile");
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+async function autoRecoverUser() {
+  if (state.recovering) return false;
+  const profile = getSavedProfile();
+  if (!profile || !profile.name) return false;
+
+  state.recovering = true;
+  try {
+    const data = await api("/api/users/onboard", {
+      method: "POST",
+      body: JSON.stringify(profile)
+    });
+    setActiveUser(data.userId);
+    showToast("\u0421\u0435\u0441\u0441\u0438\u044f \u0432\u043e\u0441\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d\u0430", "quest", "\u{1F504}");
+    return true;
+  } catch {
+    return false;
+  } finally {
+    state.recovering = false;
   }
 }
 
@@ -237,22 +406,58 @@ function pretty(value) {
   return JSON.stringify(value, null, 2);
 }
 
-async function api(path, options = {}) {
-  const response = await fetch(path, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
-  });
+/* ── API with Request Deduplication + Auto-Recovery ── */
+const pendingRequests = new Map();
 
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload.error || `HTTP ${response.status}`);
+async function api(path, options = {}, _retried = false) {
+  const key = options.method === "POST" ? null : path;
+  if (key && pendingRequests.has(key)) return pendingRequests.get(key);
+
+  const promise = (async () => {
+    const response = await fetch(path, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      }
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const isUserNotFound = response.status === 404 && /user not found/i.test(payload.error || "");
+      if (isUserNotFound && !_retried) {
+        const recovered = await autoRecoverUser();
+        if (recovered) {
+          let retryPath = path;
+          if (path.includes("/api/progress/")) {
+            retryPath = `/api/progress/${encodeURIComponent(state.userId)}`;
+          }
+          let retryOpts = options;
+          if (options.body && typeof options.body === "string") {
+            try {
+              const parsed = JSON.parse(options.body);
+              if (parsed.userId) {
+                parsed.userId = state.userId;
+                retryOpts = { ...options, body: JSON.stringify(parsed) };
+              }
+            } catch { /* keep original */ }
+          }
+          return api(retryPath, retryOpts, true);
+        }
+      }
+      throw new Error(payload.error || `HTTP ${response.status}`);
+    }
+    return payload;
+  })();
+
+  if (key) {
+    pendingRequests.set(key, promise);
+    promise.finally(() => pendingRequests.delete(key));
   }
-  return payload;
+  return promise;
 }
 
+/* ── Progress Model ── */
 function getProgressModel(progressResponse) {
   const response = progressResponse || {};
   const progress = response.progress || {};
@@ -277,27 +482,19 @@ function getTodayKey() {
 
 function buildQuests(model) {
   return [
-    { id: "profile", text: "Создать профиль", done: Boolean(model.user) },
-    { id: "plan", text: "Сгенерировать первый план", done: model.planGeneratedCount > 0 },
-    { id: "meal_today", text: "Добавить лог питания сегодня", done: model.lastMealDate === getTodayKey() },
-    { id: "streak_3", text: "Собрать серию 3 дня", done: model.streak >= 3 },
-    { id: "premium", text: "Активировать premium", done: model.tier === "premium" }
+    { id: "profile", text: "\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u0440\u043e\u0444\u0438\u043b\u044c", done: Boolean(model.user) },
+    { id: "plan", text: "\u0421\u0433\u0435\u043d\u0435\u0440\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043f\u0435\u0440\u0432\u044b\u0439 \u043f\u043b\u0430\u043d", done: model.planGeneratedCount > 0 },
+    { id: "meal_today", text: "\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u043b\u043e\u0433 \u043f\u0438\u0442\u0430\u043d\u0438\u044f \u0441\u0435\u0433\u043e\u0434\u043d\u044f", done: model.lastMealDate === getTodayKey() },
+    { id: "streak_3", text: "\u0421\u043e\u0431\u0440\u0430\u0442\u044c \u0441\u0435\u0440\u0438\u044e 3 \u0434\u043d\u044f", done: model.streak >= 3 },
+    { id: "premium", text: "\u0410\u043a\u0442\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u0442\u044c premium", done: model.tier === "premium" }
   ];
 }
 
 function getNextStepFromQuests(quests) {
-  if (!quests[0].done) {
-    return "step-onboard";
-  }
-  if (!quests[1].done) {
-    return "step-plan";
-  }
-  if (!quests[2].done || !quests[3].done) {
-    return "step-meal";
-  }
-  if (!quests[4].done) {
-    return "step-subscription";
-  }
+  if (!quests[0].done) return "step-onboard";
+  if (!quests[1].done) return "step-plan";
+  if (!quests[2].done || !quests[3].done) return "step-meal";
+  if (!quests[4].done) return "step-subscription";
   return "step-progress";
 }
 
@@ -307,7 +504,7 @@ function getStepNode(stepId) {
 
 function getStepTitle(stepId) {
   const node = getStepNode(stepId);
-  return (node && node.dataset.stepTitle) || "Текущий шаг";
+  return (node && node.dataset.stepTitle) || "\u0422\u0435\u043a\u0443\u0449\u0438\u0439 \u0448\u0430\u0433";
 }
 
 function getStepCallToAction(stepId) {
@@ -344,7 +541,7 @@ function renderJourney(quests, nextStep) {
 
 function renderLeaderboard(model) {
   const me = {
-    name: (model.user && model.user.name ? model.user.name : "Вы"),
+    name: (model.user && model.user.name ? model.user.name : "\u0412\u044b"),
     score:
       Number(model.points || 0) +
       Number(model.streak || 0) * 14 +
@@ -363,26 +560,25 @@ function renderLeaderboard(model) {
   top.forEach((row, index) => {
     const item = document.createElement("li");
     item.className = `leaderboard-row${row.isUser ? " is-user" : ""}`;
+    const medals = ["\u{1F947}", "\u{1F948}", "\u{1F949}"];
+    const rankDisplay = index < 3 ? medals[index] : String(index + 1);
     item.innerHTML = `
-      <span class="leader-rank">${index + 1}</span>
+      <span class="leader-rank">${rankDisplay}</span>
       <span>
         <strong class="leader-name">${row.name}</strong>
-        <small class="leader-score">${row.isUser ? "ваш результат" : "игрок лиги"}</small>
+        <small class="leader-score">${row.isUser ? "\u0432\u0430\u0448 \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442" : "\u0438\u0433\u0440\u043e\u043a \u043b\u0438\u0433\u0438"}</small>
       </span>
       <strong>${row.score} XP</strong>
     `;
+    item.style.animationDelay = `${index * 60}ms`;
     el.leaderboardList.appendChild(item);
   });
 }
 
 function setActiveStep(stepId, options = {}) {
   const { force = false } = options;
-  if (!STEP_ORDER.includes(stepId)) {
-    return;
-  }
-  if (!force && !state.unlockedStepIds.includes(stepId)) {
-    return;
-  }
+  if (!STEP_ORDER.includes(stepId)) return;
+  if (!force && !state.unlockedStepIds.includes(stepId)) return;
 
   state.activeStep = stepId;
   localStorage.setItem("activeStep", stepId);
@@ -403,31 +599,109 @@ function setActiveStep(stepId, options = {}) {
 
 function focusCurrentStepAction() {
   const section = getStepNode(state.activeStep);
-  if (!section) {
-    return;
-  }
+  if (!section) return;
   if (state.activeStep === "step-progress") {
     refreshProgress("progress");
     refreshEvents();
   }
   section.scrollIntoView({ behavior: "smooth", block: "start" });
   const control = section.querySelector("input, textarea, select, button");
-  if (control) {
-    control.focus();
-  }
+  if (control) control.focus();
 }
 
 function computeLevel(points) {
   const xpPerLevel = 50;
   const level = Math.floor(points / xpPerLevel) + 1;
   const currentXp = points % xpPerLevel;
-  return {
-    level,
-    currentXp,
-    xpPerLevel
-  };
+  return { level, currentXp, xpPerLevel };
 }
 
+/* ── Gamification Delta Detection ── */
+function detectChanges(model, quests) {
+  const changes = {
+    xpGained: 0,
+    leveledUp: false,
+    newLevel: 0,
+    newAchievements: [],
+    streakChanged: false,
+    newStreak: 0,
+    newQuestsDone: []
+  };
+
+  const pointsDiff = model.points - state.prevPoints;
+  if (pointsDiff > 0 && state.prevPoints > 0) {
+    changes.xpGained = pointsDiff;
+  }
+
+  const levelInfo = computeLevel(model.points);
+  if (levelInfo.level > state.prevLevel && state.prevLevel > 0) {
+    changes.leveledUp = true;
+    changes.newLevel = levelInfo.level;
+  }
+
+  if (model.streak > state.prevStreak && state.prevStreak > 0) {
+    changes.streakChanged = true;
+    changes.newStreak = model.streak;
+  }
+
+  for (const ach of model.achievements) {
+    if (!state.prevAchievements.includes(ach)) {
+      changes.newAchievements.push(ach);
+    }
+  }
+
+  const currentDone = new Set(quests.filter((q) => q.done).map((q) => q.id));
+  for (const id of currentDone) {
+    if (!state.prevQuestsDone.has(id)) {
+      changes.newQuestsDone.push(id);
+    }
+  }
+
+  // Update previous state
+  state.prevPoints = model.points;
+  state.prevLevel = levelInfo.level;
+  state.prevStreak = model.streak;
+  state.prevAchievements = [...model.achievements];
+  state.prevQuestsDone = currentDone;
+
+  return changes;
+}
+
+/* ── Apply Gamification Effects ── */
+function applyGamificationEffects(changes) {
+  if (changes.xpGained > 0) {
+    showToast(`+${changes.xpGained} XP \u0437\u0430\u0440\u0430\u0431\u043e\u0442\u0430\u043d\u043e!`, "xp");
+    floatXP(changes.xpGained, el.statPoints);
+    popStat(el.statPoints);
+    agentReact("win");
+  }
+
+  if (changes.leveledUp) {
+    setTimeout(() => showLevelUp(changes.newLevel), 500);
+    popStat(el.statLevel);
+  }
+
+  if (changes.streakChanged) {
+    showToast(`\u0421\u0435\u0440\u0438\u044f ${changes.newStreak} \u0434\u043d\u0435\u0439! \u041d\u0435 \u043e\u0441\u0442\u0430\u043d\u0430\u0432\u043b\u0438\u0432\u0430\u0439\u0441\u044f!`, "streak");
+    popStat(el.statStreak);
+  }
+
+  for (const ach of changes.newAchievements) {
+    const name = ACHIEVEMENT_NAMES[ach] || ach;
+    showToast(`\u0410\u0447\u0438\u0432\u043a\u0430: ${name}!`, "achievement");
+    popStat(el.statAchievements);
+    launchConfetti(1800);
+    agentReact("win");
+  }
+
+  for (const questId of changes.newQuestsDone) {
+    const questItem = el.questList.querySelector(`[data-quest-id="${questId}"]`);
+    if (questItem) questItem.classList.add("just-completed");
+    showToast(`\u041a\u0432\u0435\u0441\u0442 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d!`, "quest");
+  }
+}
+
+/* ── Render Game Center ── */
 function renderGameCenter(progressResponse) {
   const model = getProgressModel(progressResponse);
   const levelInfo = computeLevel(model.points);
@@ -444,19 +718,24 @@ function renderGameCenter(progressResponse) {
   for (const quest of quests) {
     const item = document.createElement("li");
     item.className = `quest-item${quest.done ? " done" : ""}`;
+    item.dataset.questId = quest.id;
     item.innerHTML = `
-      <span class="quest-mark">${quest.done ? "✓" : "•"}</span>
+      <span class="quest-mark">${quest.done ? "\u2713" : "\u2022"}</span>
       <span>${quest.text}</span>
     `;
     el.questList.appendChild(item);
   }
 
-  return {
-    model,
-    quests
-  };
+  // Detect and apply gamification effects
+  const changes = detectChanges(model, quests);
+  if (progressResponse) {
+    applyGamificationEffects(changes);
+  }
+
+  return { model, quests };
 }
 
+/* ── Lemon Emotion System ── */
 function hashString(value) {
   let hash = 0;
   for (let i = 0; i < value.length; i += 1) {
@@ -469,9 +748,7 @@ function pickEmotionImage(mood, emotionKey = "") {
   const goalPool = LEMON_EMOTION_LIBRARY[state.goalType] || LEMON_EMOTION_LIBRARY.balance;
   const defaultPool = LEMON_EMOTION_LIBRARY.balance;
   const variants = (goalPool && goalPool[mood]) || (defaultPool && defaultPool[mood]) || [LEMON_DEFAULT_IMAGE];
-  if (!variants.length) {
-    return LEMON_DEFAULT_IMAGE;
-  }
+  if (!variants.length) return LEMON_DEFAULT_IMAGE;
   const seed = `${state.userId || "guest"}|${state.goalType}|${mood}|${emotionKey}`;
   const index = hashString(seed) % variants.length;
   return variants[index];
@@ -479,11 +756,17 @@ function pickEmotionImage(mood, emotionKey = "") {
 
 function setLemonMood(mood, emotionKey = "") {
   const nextImage = pickEmotionImage(mood, emotionKey);
-  if (state.lastEmotionImage === nextImage) {
-    return;
-  }
+  if (state.lastEmotionImage === nextImage) return;
   state.lastEmotionImage = nextImage;
-  el.lemonImage.src = nextImage;
+
+  // Animate emotion swap
+  el.lemonImage.classList.add("emotion-swap");
+  setTimeout(() => {
+    el.lemonImage.src = nextImage;
+    el.lemonImage.addEventListener("animationend", () => {
+      el.lemonImage.classList.remove("emotion-swap");
+    }, { once: true });
+  }, 150);
 }
 
 function setAgentBubble(text) {
@@ -496,9 +779,7 @@ function clamp(value, min, max) {
 
 function getAnchorPosition(stepId) {
   const node = document.getElementById(stepId);
-  if (!node) {
-    return { x: 24, y: 100 };
-  }
+  if (!node) return { x: 24, y: 100 };
 
   const rect = node.getBoundingClientRect();
   const agentWidth = 108;
@@ -556,24 +837,21 @@ function markMilestoneShown(userId, milestone) {
 }
 
 async function maybePlayMilestoneVideo(streak) {
-  if (!state.userId) {
-    return;
-  }
+  if (!state.userId) return;
 
   const shown = getShownMilestones(state.userId);
-  const milestones = Object.keys(LEMON_MILESTONES)
-    .map((item) => Number(item))
-    .sort((a, b) => a - b);
-  const nextMilestone = milestones.find((milestone) => streak >= milestone && !shown.includes(milestone));
-  if (!nextMilestone) {
-    return;
-  }
+  const milestones = Object.keys(LEMON_MILESTONES).map((item) => Number(item)).sort((a, b) => a - b);
+  const nextMilestone = milestones.find((m) => streak >= m && !shown.includes(m));
+  if (!nextMilestone) return;
 
   markMilestoneShown(state.userId, nextMilestone);
   el.lemonVideo.src = LEMON_MILESTONES[nextMilestone];
   el.lemonVideo.classList.remove("lemon-video-hidden");
-  setAgentBubble(`Награда! Серия ${nextMilestone} дня. Ты в ритме.`);
+  setAgentBubble(`\u041d\u0430\u0433\u0440\u0430\u0434\u0430! \u0421\u0435\u0440\u0438\u044f ${nextMilestone} \u0434\u043d\u044f. \u0422\u044b \u0432 \u0440\u0438\u0442\u043c\u0435.`);
   setLemonMood("win", `milestone-${nextMilestone}`);
+  launchConfetti(3000);
+  showToast(`\u041c\u0430\u0439\u043b\u0441\u0442\u043e\u0443\u043d: \u0441\u0435\u0440\u0438\u044f ${nextMilestone} \u0434\u043d\u0435\u0439!`, "achievement", "\u{1F3AC}");
+  agentReact("win");
 
   try {
     await el.lemonVideo.play();
@@ -583,53 +861,18 @@ async function maybePlayMilestoneVideo(streak) {
 }
 
 function chooseMood(model, nextStep) {
-  if (model.streak >= 7) {
-    return "win";
-  }
-  if (nextStep === "step-onboard") {
-    return "idle";
-  }
-  if (nextStep === "step-meal") {
-    return "focus";
-  }
+  if (model.streak >= 7) return "win";
+  if (nextStep === "step-onboard") return "idle";
+  if (nextStep === "step-meal") return "focus";
   return "guide";
 }
 
 function getMoodByReason(reason, model, nextStep) {
-  if (reason === "error") {
-    return "error";
-  }
-  if (reason === "onboard" || reason === "plan") {
-    return "win";
-  }
-  if (reason === "meal") {
-    return model.streak >= 3 ? "win" : "focus";
-  }
-  if (reason === "subscription") {
-    return model.tier === "premium" ? "win" : "guide";
-  }
+  if (reason === "error") return "error";
+  if (reason === "onboard" || reason === "plan") return "win";
+  if (reason === "meal") return model.streak >= 3 ? "win" : "focus";
+  if (reason === "subscription") return model.tier === "premium" ? "win" : "guide";
   return chooseMood(model, nextStep);
-}
-
-function findClosestStepInView() {
-  const center = window.innerHeight * 0.42;
-  let winner = state.currentAnchor;
-  let winnerDistance = Number.POSITIVE_INFINITY;
-
-  for (const stepId of STEP_ORDER) {
-    const node = document.getElementById(stepId);
-    if (!node) {
-      continue;
-    }
-    const rect = node.getBoundingClientRect();
-    const point = rect.top + rect.height * 0.35;
-    const dist = Math.abs(center - point);
-    if (dist < winnerDistance) {
-      winnerDistance = dist;
-      winner = stepId;
-    }
-  }
-  return winner;
 }
 
 function syncAgentFromProgress(progressResponse, reason = "progress") {
@@ -645,13 +888,13 @@ function syncAgentFromProgress(progressResponse, reason = "progress") {
   renderLeaderboard(model);
 
   const speechByReason = {
-    onboard: "Профиль создан. Отлично, теперь генерируем первый план.",
-    plan: "План готов. Добавь прием пищи, чтобы начать серию.",
+    onboard: "\u041f\u0440\u043e\u0444\u0438\u043b\u044c \u0441\u043e\u0437\u0434\u0430\u043d. \u041e\u0442\u043b\u0438\u0447\u043d\u043e, \u0442\u0435\u043f\u0435\u0440\u044c \u0433\u0435\u043d\u0435\u0440\u0438\u0440\u0443\u0435\u043c \u043f\u0435\u0440\u0432\u044b\u0439 \u043f\u043b\u0430\u043d.",
+    plan: "\u041f\u043b\u0430\u043d \u0433\u043e\u0442\u043e\u0432. \u0414\u043e\u0431\u0430\u0432\u044c \u043f\u0440\u0438\u0435\u043c \u043f\u0438\u0449\u0438, \u0447\u0442\u043e\u0431\u044b \u043d\u0430\u0447\u0430\u0442\u044c \u0441\u0435\u0440\u0438\u044e.",
     meal: model.streak > 0
-      ? `Лог добавлен! Серия: ${model.streak}. Продолжаем без пропусков.`
-      : "Лог добавлен. Следующая цель - закрепить серию.",
-    subscription: `Тариф обновлен: ${model.tier}. Дальше держим прогресс.`,
-    error: "Есть техническая ошибка. Я рядом, сейчас поправим.",
+      ? `\u041b\u043e\u0433 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d! \u0421\u0435\u0440\u0438\u044f: ${model.streak}. \u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0430\u0435\u043c \u0431\u0435\u0437 \u043f\u0440\u043e\u043f\u0443\u0441\u043a\u043e\u0432.`
+      : "\u041b\u043e\u0433 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d. \u0421\u043b\u0435\u0434\u0443\u044e\u0449\u0430\u044f \u0446\u0435\u043b\u044c - \u0437\u0430\u043a\u0440\u0435\u043f\u0438\u0442\u044c \u0441\u0435\u0440\u0438\u044e.",
+    subscription: `\u0422\u0430\u0440\u0438\u0444 \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d: ${model.tier}. \u0414\u0430\u043b\u044c\u0448\u0435 \u0434\u0435\u0440\u0436\u0438\u043c \u043f\u0440\u043e\u0433\u0440\u0435\u0441\u0441.`,
+    error: "\u0415\u0441\u0442\u044c \u0442\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u043e\u0448\u0438\u0431\u043a\u0430. \u042f \u0440\u044f\u0434\u043e\u043c, \u0441\u0435\u0439\u0447\u0430\u0441 \u043f\u043e\u043f\u0440\u0430\u0432\u0438\u043c.",
     progress: STEP_HINTS[nextStep]
   };
 
@@ -661,23 +904,27 @@ function syncAgentFromProgress(progressResponse, reason = "progress") {
     emotionKey: `${reason}:${nextStep}:${model.streak}:${model.tier}:${model.points}`
   });
 
+  if (reason !== "progress" && reason !== "error") {
+    agentReact("win");
+  }
+
   maybePlayMilestoneVideo(model.streak);
 }
 
 function showError(message) {
   setLemonMood("error", `error:${message}`);
-  setAgentBubble(`Ошибка: ${message}`);
-  alert(message);
+  setAgentBubble(`\u041e\u0448\u0438\u0431\u043a\u0430: ${message}`);
+  showToast(message, "error");
+  agentReact("error");
 }
 
 async function loadHealthAndConfig() {
   try {
-    const health = await api("/api/health");
-    const config = await api("/api/config");
+    const [health, config] = await Promise.all([api("/api/health"), api("/api/config")]);
     el.healthBadge.textContent = `API: ${health.status}`;
     el.providerBadge.textContent = `LLM: ${config.provider}${config.providerKeyConfigured ? "" : " (stub)"}`;
   } catch (error) {
-    el.healthBadge.textContent = `API: ошибка (${error.message})`;
+    el.healthBadge.textContent = `API: \u043e\u0448\u0438\u0431\u043a\u0430 (${error.message})`;
     showError(error.message);
   }
 }
@@ -692,7 +939,7 @@ async function refreshProgress(reason = "progress") {
     renderLeaderboard(model);
     placeAgentAt("step-onboard", {
       mood: "idle",
-      speech: "Start with step one: create your profile.",
+      speech: "\u041d\u0430\u0447\u043d\u0438 \u0441 \u043f\u0435\u0440\u0432\u043e\u0433\u043e \u0448\u0430\u0433\u0430: \u0441\u043e\u0437\u0434\u0430\u0439 \u043f\u0440\u043e\u0444\u0438\u043b\u044c.",
       emotionKey: "empty:onboard"
     });
     return;
@@ -717,9 +964,11 @@ async function refreshEvents() {
   }
 }
 
+/* ── Form Handlers ── */
 el.onboardForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
+  const submitBtn = form.querySelector("button[type=submit]");
   const payload = {
     name: form.querySelector("#name").value.trim(),
     goal: form.querySelector("#goal").value.trim(),
@@ -727,49 +976,62 @@ el.onboardForm.addEventListener("submit", async (event) => {
   };
   setGoalType(payload.goal);
 
+  setButtonLoading(submitBtn, true);
   try {
     const data = await api("/api/users/onboard", {
       method: "POST",
       body: JSON.stringify(payload)
     });
     setActiveUser(data.userId);
+    saveUserProfile(payload.name, payload.goal, payload.caloriesTarget);
     hideLemonVideo();
+    showToast("\u041f\u0440\u043e\u0444\u0438\u043b\u044c \u0441\u043e\u0437\u0434\u0430\u043d! \u0414\u043e\u0431\u0440\u043e \u043f\u043e\u0436\u0430\u043b\u043e\u0432\u0430\u0442\u044c!", "quest");
     await refreshProgress("onboard");
     await refreshEvents();
   } catch (error) {
     showError(error.message);
+  } finally {
+    setButtonLoading(submitBtn, false);
   }
 });
 
 el.planForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!state.userId) {
-    showError("Сначала создай профиль.");
+    showError("\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0441\u043e\u0437\u0434\u0430\u0439 \u043f\u0440\u043e\u0444\u0438\u043b\u044c.");
     return;
   }
 
-  const preferences = event.currentTarget.querySelector("#preferences").value.trim();
+  const form = event.currentTarget;
+  const submitBtn = form.querySelector("button[type=submit]");
+  const preferences = form.querySelector("#preferences").value.trim();
+
+  setButtonLoading(submitBtn, true);
   try {
     const data = await api("/api/plans/generate", {
       method: "POST",
       body: JSON.stringify({ userId: state.userId, preferences })
     });
     el.planOutput.textContent = pretty(data.plan);
+    showToast("\u041f\u043b\u0430\u043d \u043f\u0438\u0442\u0430\u043d\u0438\u044f \u0433\u043e\u0442\u043e\u0432!", "quest");
     await refreshProgress("plan");
     await refreshEvents();
   } catch (error) {
     showError(error.message);
+  } finally {
+    setButtonLoading(submitBtn, false);
   }
 });
 
 el.mealForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!state.userId) {
-    showError("Сначала создай профиль.");
+    showError("\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0441\u043e\u0437\u0434\u0430\u0439 \u043f\u0440\u043e\u0444\u0438\u043b\u044c.");
     return;
   }
 
   const form = event.currentTarget;
+  const submitBtn = form.querySelector("button[type=submit]");
   const mealDate = form.querySelector("#mealDate").value;
   const payload = {
     userId: state.userId,
@@ -778,49 +1040,60 @@ el.mealForm.addEventListener("submit", async (event) => {
     ...(mealDate ? { date: mealDate } : {})
   };
 
+  setButtonLoading(submitBtn, true);
   try {
     await api("/api/meals/log", {
       method: "POST",
       body: JSON.stringify(payload)
     });
+    showToast(`${payload.mealName} \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d \u0432 \u043b\u043e\u0433!`, "quest", "\u{1F37D}\uFE0F");
     await refreshProgress("meal");
     await refreshEvents();
   } catch (error) {
     showError(error.message);
+  } finally {
+    setButtonLoading(submitBtn, false);
   }
 });
 
 el.subscriptionForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!state.userId) {
-    showError("Сначала создай профиль.");
+    showError("\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u0441\u043e\u0437\u0434\u0430\u0439 \u043f\u0440\u043e\u0444\u0438\u043b\u044c.");
     return;
   }
-  const tier = event.currentTarget.querySelector("#subscriptionTier").value;
+  const form = event.currentTarget;
+  const submitBtn = form.querySelector("button[type=submit]");
+  const tier = form.querySelector("#subscriptionTier").value;
 
+  setButtonLoading(submitBtn, true);
   try {
     await api("/api/subscriptions/set", {
       method: "POST",
       body: JSON.stringify({ userId: state.userId, tier })
     });
+    showToast(`\u0422\u0430\u0440\u0438\u0444 ${tier} \u0430\u043a\u0442\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u043d!`, tier === "premium" ? "achievement" : "quest");
+    if (tier === "premium") launchConfetti(2000);
     await refreshProgress("subscription");
     await refreshEvents();
   } catch (error) {
     showError(error.message);
+  } finally {
+    setButtonLoading(submitBtn, false);
   }
 });
 
+/* ── Event Listeners ── */
 el.refreshProgress.addEventListener("click", () => refreshProgress("progress"));
 el.refreshEvents.addEventListener("click", refreshEvents);
 el.lemonVideo.addEventListener("ended", hideLemonVideo);
 el.lemonVideo.addEventListener("error", hideLemonVideo);
+
 for (const button of el.menuSteps) {
   button.addEventListener("click", () => {
     const stepId = button.dataset.stepTarget;
     setActiveStep(stepId);
-    if (state.activeStep !== stepId) {
-      return;
-    }
+    if (state.activeStep !== stepId) return;
     placeAgentAt(stepId, {
       mood: STEP_MOOD_BY_STEP[stepId] || "guide",
       speech: getStepCallToAction(stepId),
@@ -831,28 +1104,40 @@ for (const button of el.menuSteps) {
 
 el.missionAction.addEventListener("click", focusCurrentStepAction);
 
-window.addEventListener("resize", () => {
+// Lemon click interaction
+el.lemonAgent.addEventListener("click", () => {
+  const phrases = state.clickPhrases;
+  const phrase = phrases[Math.floor(Math.random() * phrases.length)];
+  setAgentBubble(phrase);
+  agentReact("win");
+  // Cycle random mood on click
+  const moods = ["idle", "guide", "focus", "win"];
+  const mood = moods[Math.floor(Math.random() * moods.length)];
+  setLemonMood(mood, `click:${Date.now()}`);
+});
+
+// Debounced resize handler
+window.addEventListener("resize", debounce(() => {
   placeAgentAt(state.activeStep, {
     mood: STEP_MOOD_BY_STEP[state.activeStep] || "guide",
     speech: getStepCallToAction(state.activeStep),
     emotionKey: `resize:${state.activeStep}`
   });
-});
+}, 200));
 
+/* ── Service Worker ── */
 if ("serviceWorker" in navigator) {
   if (IS_LOCAL) {
     navigator.serviceWorker
       .getRegistrations()
-      .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+      .then((registrations) => Promise.all(registrations.map((r) => r.unregister())))
       .then(() => caches.keys())
       .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
       .catch(() => {});
   } else {
     let refreshedByServiceWorker = false;
     navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (refreshedByServiceWorker) {
-        return;
-      }
+      if (refreshedByServiceWorker) return;
       refreshedByServiceWorker = true;
       location.reload();
     });
@@ -864,6 +1149,7 @@ if ("serviceWorker" in navigator) {
   }
 }
 
+/* ── Bootstrap ── */
 setActiveUser(state.userId);
 hideLemonVideo();
 const bootstrap = renderGameCenter(null);
