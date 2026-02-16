@@ -66,7 +66,7 @@ npm run check
 2. Добавьте env-переменные в `Preview` и `Production`.
 3. Выполните deploy.
 
-Подробный пошаговый гайд по GitHub + Vercel + домену `nova-forma.ru`:
+Подробный пошаговый гайд по GitHub + Vercel + домену `web-alchemy.ru`:
 - `DEPLOY-GITHUB-DOMAIN.md`
 
 ## API (кратко)

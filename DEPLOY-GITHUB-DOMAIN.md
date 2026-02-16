@@ -1,126 +1,105 @@
-# GitHub + Vercel + nova-forma.ru (пошагово)
+# GitHub + Vercel + web-alchemy.ru (пошагово)
 
-## 1) Как назвать репозиторий
+## 1) Репозиторий GitHub
 
-Рекомендованные варианты:
-1. `nova-forma-mvp`
-2. `aisha-nova-forma-mvp`
-3. `nova-forma-app`
+Репозиторий уже создан и подключен:
+1. `https://github.com/barisovna/nova-forma-mvp`
+2. Ветка: `main`
 
-Лучший для старта: `nova-forma-mvp`.
+## 2) Что должно быть в репозитории
 
-## 2) Какие папки и файлы выгружать в GitHub
-
-Выгружаем весь проект из `C:\Users\baris\web`, кроме того, что уже в `.gitignore`.
-
-Ключевые папки:
+Основные папки/файлы:
 1. `public/`
 2. `src/`
 3. `api/`
 4. `scripts/`
 5. `.github/workflows/`
-6. `data/.gitkeep`
+6. `package.json`
+7. `app.js`
+8. `server.js`
+9. `vercel.json`
+10. `.env.example`
 
-Ключевые файлы:
-1. `package.json`
-2. `server.js`
-3. `app.js`
-4. `vercel.json`
-5. `.env.example`
-6. `.gitignore`
-7. `README.md`
-8. `deep-research-report.md`
-
-Не выгружаем:
-1. `.env`, `.env.local`, любые реальные ключи
+Не хранить в репозитории:
+1. реальные `.env` с ключами
 2. `.vercel/`
-3. `data/db.json` (runtime файл)
+3. runtime БД (`data/db.json`)
 
-## 3) Как создать и загрузить репозиторий
+## 3) Vercel
 
-В терминале PowerShell:
+Проект подключен:
+1. `nova-forma-mvp`
+2. Production deployment есть и зеленый.
 
-```powershell
-cd C:\Users\baris\web
-git init
-git add .
-git commit -m "Initial MVP: core api + pwa + lemon gamification"
-```
+Проверьте в Vercel -> Project -> `Settings` -> `Domains`, что есть оба домена:
+1. `web-alchemy.ru`
+2. `www.web-alchemy.ru`
 
-На GitHub:
-1. Создайте пустой репозиторий с именем `nova-forma-mvp`.
-2. Не добавляйте `README/.gitignore/license` в веб-интерфейсе (пустой репо).
+## 4) REG.RU DNS (правильная конфигурация)
 
-Дальше в терминале:
+Важно: настраивать надо в **Ресурсные записи (A/CNAME)**, не в “Свой список DNS-серверов”.
 
-```powershell
-git branch -M main
-git remote add origin https://github.com/<YOUR_GITHUB_USERNAME>/nova-forma-mvp.git
-git push -u origin main
-```
-
-## 4) Подключение к Vercel
-
-1. Зайдите в Vercel -> `Add New Project`.
-2. Выберите репозиторий `nova-forma-mvp`.
-3. Framework preset: `Other` (Node).
-4. Build command: пусто.
-5. Output directory: пусто.
-6. Root directory: `/` (корень проекта).
-
-Нужные Environment Variables (минимум):
-1. `LLM_PROVIDER`
-2. `DEEPSEEK_API_KEY`
-3. `QWEN_API_KEY`
-4. `JWT_SECRET`
-5. `PAYMENT_SECRET_KEY`
-6. `WEB_PUSH_PUBLIC_KEY`
-7. `WEB_PUSH_PRIVATE_KEY`
-
-Потом нажмите `Deploy`.
-
-## 5) Подключение домена reg.ru: nova-forma.ru
-
-### В Vercel
-1. Project -> `Settings` -> `Domains`.
-2. Добавьте:
-   - `nova-forma.ru`
-   - `www.nova-forma.ru`
-
-### В REG.RU (DNS зона домена)
-Добавьте записи:
-1. `A` запись:
+Должно быть:
+1. `A`:
    - Host: `@`
    - Value: `76.76.21.21`
-2. `CNAME` запись:
+2. `CNAME`:
    - Host: `www`
    - Value: `cname.vercel-dns.com`
 
-TTL: можно оставить стандартный (или `300` для более быстрого теста).
+## 5) Ошибки из ваших скриншотов и как исправить
 
-После применения подождите DNS propagation (обычно от 5 минут до 24 часов).
+### Ошибка 1: конфликт при создании CNAME для `www`
 
-## 6) Проверка после деплоя
+Текст ошибки:
+1. `Существующая запись 'www.web-alchemy.ru. AAAA ...' конфликтует ...`
 
-1. Откройте:
-   - `https://nova-forma.ru`
-   - `https://www.nova-forma.ru`
-2. Проверьте health endpoint:
-   - `https://nova-forma.ru/api/health`
-3. В интерфейсе проверьте:
-   - создание пользователя;
-   - генерацию плана;
-   - лог питания;
-   - реакции "живого лимона".
+Причина:
+1. Для `www` уже существует `AAAA` запись.
+2. Нельзя иметь `CNAME` и `A/AAAA` одновременно на одном и том же имени.
 
-## 7) Безопасность перед публикацией
+Что сделать:
+1. Удалить все записи с именем `www`, которые не CNAME (`A`, `AAAA`).
+2. Оставить только:
+   - `www CNAME cname.vercel-dns.com`
 
-1. Обязательно смените все тестовые ключи на боевые.
-2. Убедитесь, что в GitHub нет секретов:
+### Ошибка 2: открывается страница REG.RU “Сайт размещен некорректно”
 
+Причина:
+1. Браузер/провайдер кэширует старые DNS.
+2. Раньше `www` указывал на хостинг REG.RU.
+
+Что сделать:
+1. В Windows:
 ```powershell
-npm run secret:scan
+ipconfig /flushdns
 ```
+2. Закрыть все вкладки домена и открыть в режиме InPrivate/Incognito.
+3. Проверить DNS вручную:
+```powershell
+nslookup -type=A web-alchemy.ru 1.1.1.1
+nslookup -type=CNAME www.web-alchemy.ru 1.1.1.1
+```
+Ожидаемо:
+1. `web-alchemy.ru -> 76.76.21.21`
+2. `www.web-alchemy.ru -> cname.vercel-dns.com`
 
-3. Включите GitHub branch protection для `main`.
-4. Публикуйте изменения только через pull request.
+## 6) Текущее состояние по проверке из терминала
+
+Проверено локально:
+1. `web-alchemy.ru` резолвится в `76.76.21.21`.
+2. `www.web-alchemy.ru` резолвится в `cname.vercel-dns.com`.
+
+Это означает, что DNS уже близок к корректному состоянию, осталось дождаться кэша в браузере/провайдере.
+
+## 7) Финальная проверка после кэша
+
+Проверьте:
+1. `https://web-alchemy.ru`
+2. `https://www.web-alchemy.ru`
+3. `https://web-alchemy.ru/api/health`
+
+Если домен открывается, но показывает старую страницу:
+1. откройте из другого браузера;
+2. откройте с телефона через мобильный интернет;
+3. подождите 30-120 минут (иногда до 24 часов).
