@@ -3,7 +3,8 @@ const state = {
   milestoneMemory: loadMilestoneMemory(),
   lastProgressResponse: null,
   currentAnchor: "step-onboard",
-  lastAutoMoveAt: 0
+  lastAutoMoveAt: 0,
+  lastEmotionImage: ""
 };
 
 const IS_LOCAL = location.hostname === "localhost" || location.hostname === "127.0.0.1";
@@ -15,12 +16,28 @@ if (!DEV_MODE) {
   });
 }
 
-const LEMON_IMAGE_BY_MOOD = {
-  idle: "/assets/limon/limonfoto1.png",
-  guide: "/assets/limon/limonid3.png",
-  focus: "/assets/limon/limonid2.png",
-  win: "/assets/limon/limonid1.png"
+const LEMON_EMOTION_LIBRARY = {
+  idle: [
+    "/assets/limon/limonfoto1.png",
+    "/assets/limon/limonid-okay.png",
+    "/assets/limon/limonid-love.png"
+  ],
+  guide: [
+    "/assets/limon/limonid-with-a-book.png",
+    "/assets/limon/limonid-class.png",
+    "/assets/limon/limonid-question.png"
+  ],
+  focus: ["/assets/limon/limonid-keen.png", "/assets/limon/limonid-language.png"],
+  win: [
+    "/assets/limon/limonid-class-star.png",
+    "/assets/limon/limonid-muscle-strength.png",
+    "/assets/limon/limonid-love2.png",
+    "/assets/limon/limonid-laughter.png"
+  ],
+  error: ["/assets/limon/limonid-get-angry.png", "/assets/limon/limonid-steaming-screaming.png"]
 };
+
+const LEMON_DEFAULT_IMAGE = "/assets/limon/limonfoto1.png";
 
 const LEMON_MILESTONES = {
   3: "/assets/limon/limon1.mp4",
@@ -209,11 +226,30 @@ function renderGameCenter(progressResponse) {
   };
 }
 
-function setLemonMood(mood) {
-  const nextImage = LEMON_IMAGE_BY_MOOD[mood] || LEMON_IMAGE_BY_MOOD.idle;
-  if (el.lemonImage.src.endsWith(nextImage)) {
+function hashString(value) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) % 2147483647;
+  }
+  return Math.abs(hash);
+}
+
+function pickEmotionImage(mood, emotionKey = "") {
+  const variants = LEMON_EMOTION_LIBRARY[mood] || LEMON_EMOTION_LIBRARY.idle || [LEMON_DEFAULT_IMAGE];
+  if (!variants.length) {
+    return LEMON_DEFAULT_IMAGE;
+  }
+  const seed = `${state.userId || "guest"}|${mood}|${emotionKey}`;
+  const index = hashString(seed) % variants.length;
+  return variants[index];
+}
+
+function setLemonMood(mood, emotionKey = "") {
+  const nextImage = pickEmotionImage(mood, emotionKey);
+  if (state.lastEmotionImage === nextImage) {
     return;
   }
+  state.lastEmotionImage = nextImage;
   el.lemonImage.src = nextImage;
 }
 
@@ -248,12 +284,16 @@ function getAnchorPosition(stepId) {
 }
 
 function placeAgentAt(stepId, options = {}) {
-  const { mood = "guide", speech = STEP_HINTS[stepId] || STEP_HINTS["step-onboard"] } = options;
+  const {
+    mood = "guide",
+    speech = STEP_HINTS[stepId] || STEP_HINTS["step-onboard"],
+    emotionKey = stepId
+  } = options;
   const { x, y } = getAnchorPosition(stepId);
   state.currentAnchor = stepId;
   state.lastAutoMoveAt = Date.now();
 
-  setLemonMood(mood);
+  setLemonMood(mood, emotionKey);
   setAgentBubble(speech);
 
   el.lemonAgent.style.left = `${x}px`;
@@ -300,7 +340,7 @@ async function maybePlayMilestoneVideo(streak) {
   el.lemonVideo.src = LEMON_MILESTONES[nextMilestone];
   el.lemonVideo.classList.remove("lemon-video-hidden");
   setAgentBubble(`Награда! Серия ${nextMilestone} дня. Ты в ритме.`);
-  setLemonMood("win");
+  setLemonMood("win", `milestone-${nextMilestone}`);
 
   try {
     await el.lemonVideo.play();
@@ -320,6 +360,22 @@ function chooseMood(model, nextStep) {
     return "focus";
   }
   return "guide";
+}
+
+function getMoodByReason(reason, model, nextStep) {
+  if (reason === "error") {
+    return "error";
+  }
+  if (reason === "onboard" || reason === "plan") {
+    return "win";
+  }
+  if (reason === "meal") {
+    return model.streak >= 3 ? "win" : "focus";
+  }
+  if (reason === "subscription") {
+    return model.tier === "premium" ? "win" : "guide";
+  }
+  return chooseMood(model, nextStep);
 }
 
 function findClosestStepInView() {
@@ -346,7 +402,7 @@ function findClosestStepInView() {
 function syncAgentFromProgress(progressResponse, reason = "progress") {
   const { model, quests } = renderGameCenter(progressResponse);
   const nextStep = getNextStepFromQuests(quests);
-  const mood = chooseMood(model, nextStep);
+  const mood = getMoodByReason(reason, model, nextStep);
 
   const speechByReason = {
     onboard: "Профиль создан. Отлично, теперь генерируем первый план.",
@@ -361,14 +417,15 @@ function syncAgentFromProgress(progressResponse, reason = "progress") {
 
   placeAgentAt(nextStep, {
     mood,
-    speech: speechByReason[reason] || speechByReason.progress
+    speech: speechByReason[reason] || speechByReason.progress,
+    emotionKey: `${reason}:${nextStep}:${model.streak}:${model.tier}:${model.points}`
   });
 
   maybePlayMilestoneVideo(model.streak);
 }
 
 function showError(message) {
-  setLemonMood("focus");
+  setLemonMood("error", `error:${message}`);
   setAgentBubble(`Ошибка: ${message}`);
   alert(message);
 }
