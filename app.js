@@ -104,6 +104,17 @@ function serveStatic(req, res, pathname) {
     return;
   }
 
+  // Browser may request favicon paths by default. Reuse lemon image to avoid noisy 404 logs.
+  if (pathname === "/favicon.ico" || pathname === "/favicon.png") {
+    const iconPath = path.join(PUBLIC_DIR, "assets", "limon", "limonfoto1.png");
+    if (fs.existsSync(iconPath)) {
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "image/png");
+      res.end(fs.readFileSync(iconPath));
+      return;
+    }
+  }
+
   const fullPath = safePublicPath(pathname);
   if (!fullPath) {
     sendError(res, 400, "Invalid path");
