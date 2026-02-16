@@ -3,69 +3,75 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0f766e" />
+    <meta name="theme-color" content="#f59e0b" />
     <link rel="icon" type="image/png" href="/assets/limon/limonfoto1.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="stylesheet" href="/styles.css" />
-    <title>Aisha Cross-Platform MVP</title>
+    <title>Web Alchemy Fit Quest</title>
   </head>
   <body>
     <main class="container">
-      <header class="hero">
-        <h1>AishaDietBot MVP</h1>
-        <p>Тестовый кроссплатформенный запуск: Core API + PWA + геймификация.</p>
+      <header class="hero" id="step-hero">
+        <div>
+          <p class="hero-tag">Web Alchemy Fit Quest</p>
+          <h1>Похудение как игра с живым AI-агентом</h1>
+          <p class="hero-sub">
+            Лимон-агент ведет по шагам, реагирует на прогресс и поддерживает серию без пропусков.
+          </p>
+        </div>
+        <div class="hero-status">
+          <span class="badge" id="healthBadge">API: проверка...</span>
+          <span class="badge" id="providerBadge">LLM: ...</span>
+          <span class="badge" id="activeUserBadge">Профиль не создан</span>
+        </div>
       </header>
 
-      <section class="card status-card">
-        <h2>Статус</h2>
-        <div id="healthStatus">Проверка API...</div>
-        <div id="providerStatus"></div>
-        <div id="activeUser"></div>
-      </section>
-
-      <section class="card lemon-card">
-        <h2>Лимон-ведущий</h2>
-        <div class="lemon-layout">
-          <div class="lemon-media">
-            <img
-              id="lemonImage"
-              src="/assets/limon/limonfoto1.png"
-              alt="Лимон-аватар"
-              loading="lazy"
-            />
-            <video
-              id="lemonVideo"
-              class="lemon-video-hidden"
-              muted
-              playsinline
-              preload="metadata"
-            ></video>
+      <section class="card game-card" id="step-game">
+        <h2>Игровой центр</h2>
+        <div class="stats-grid">
+          <article class="stat">
+            <p class="stat-label">Уровень</p>
+            <p class="stat-value" id="statLevel">1</p>
+          </article>
+          <article class="stat">
+            <p class="stat-label">Серия дней</p>
+            <p class="stat-value" id="statStreak">0</p>
+          </article>
+          <article class="stat">
+            <p class="stat-label">Очки</p>
+            <p class="stat-value" id="statPoints">0</p>
+          </article>
+          <article class="stat">
+            <p class="stat-label">Достижения</p>
+            <p class="stat-value" id="statAchievements">0</p>
+          </article>
+        </div>
+        <div class="xp-wrap">
+          <div class="xp-label">
+            <span>Опыт до следующего уровня</span>
+            <span id="xpText">0 / 50 XP</span>
           </div>
-          <div class="lemon-panel">
-            <p id="lemonSpeech" class="lemon-speech">Я живой лимон. Давай начнем!</p>
-            <div id="lemonModeInfo" class="lemon-mode-info">
-              Режим: статичный аватар + реплики по прогрессу.
-            </div>
-            <div class="lemon-mode-list">
-              <span>Режимы:</span>
-              <span>1) Статичный лимон</span>
-              <span>2) Milestone-видео</span>
-              <span>3) Реплики по streak</span>
-            </div>
+          <div class="xp-track">
+            <div class="xp-fill" id="xpFill"></div>
           </div>
         </div>
+        <h3 class="quest-title">Ежедневные квесты</h3>
+        <ul class="quest-list" id="questList"></ul>
       </section>
 
-      <section class="card">
-        <h2>1) Онбординг</h2>
-        <form id="onboardForm">
+      <section class="card step-card" id="step-onboard">
+        <div class="step-head">
+          <span class="step-index">Шаг 1</span>
+          <h2>Онбординг</h2>
+        </div>
+        <form id="onboardForm" class="form-grid">
           <label>
             Имя
-            <input type="text" id="name" required placeholder="Например, Aisha" />
+            <input type="text" id="name" required placeholder="Например, Anna" />
           </label>
           <label>
             Цель
-            <input type="text" id="goal" placeholder="fat_loss / maintain / gain" />
+            <input type="text" id="goal" placeholder="похудеть / поддерживать / набор" />
           </label>
           <label>
             Целевые ккал
@@ -75,40 +81,56 @@
         </form>
       </section>
 
-      <section class="card">
-        <h2>2) Генерация плана</h2>
-        <form id="planForm">
+      <section class="card step-card" id="step-plan">
+        <div class="step-head">
+          <span class="step-index">Шаг 2</span>
+          <h2>План питания</h2>
+        </div>
+        <form id="planForm" class="form-grid">
           <label>
             Предпочтения
-            <textarea id="preferences" rows="3" placeholder="Без лактозы, больше белка..."></textarea>
+            <textarea
+              id="preferences"
+              rows="3"
+              placeholder="Например: без лактозы, больше белка, меньше сладкого"
+            ></textarea>
           </label>
           <button type="submit">Сгенерировать план</button>
         </form>
-        <pre id="planOutput" class="output"></pre>
+        <details class="debug-box">
+          <summary>Показать сырой ответ плана</summary>
+          <pre id="planOutput" class="output"></pre>
+        </details>
       </section>
 
-      <section class="card">
-        <h2>3) Лог питания</h2>
-        <form id="mealForm">
+      <section class="card step-card" id="step-meal">
+        <div class="step-head">
+          <span class="step-index">Шаг 3</span>
+          <h2>Лог питания</h2>
+        </div>
+        <form id="mealForm" class="form-grid">
           <label>
-            Прием пищи
-            <input type="text" id="mealName" required placeholder="Овсянка + йогурт" />
+            Блюдо
+            <input type="text" id="mealName" required placeholder="Оладушки, омлет, салат..." />
           </label>
           <label>
             Ккал
             <input type="number" id="mealCalories" min="0" max="5000" value="450" />
           </label>
           <label>
-            Дата (для теста streak)
+            Дата (для теста серии)
             <input type="date" id="mealDate" />
           </label>
           <button type="submit">Добавить лог</button>
         </form>
       </section>
 
-      <section class="card">
-        <h2>4) Подписка</h2>
-        <form id="subscriptionForm">
+      <section class="card step-card" id="step-subscription">
+        <div class="step-head">
+          <span class="step-index">Шаг 4</span>
+          <h2>Подписка</h2>
+        </div>
+        <form id="subscriptionForm" class="form-grid">
           <label>
             Тариф
             <select id="subscriptionTier">
@@ -121,18 +143,34 @@
         </form>
       </section>
 
-      <section class="card">
-        <h2>Прогресс</h2>
-        <button id="refreshProgress" type="button">Обновить прогресс</button>
-        <pre id="progressOutput" class="output"></pre>
-      </section>
-
-      <section class="card">
-        <h2>Последние события</h2>
-        <button id="refreshEvents" type="button">Обновить события</button>
-        <pre id="eventsOutput" class="output"></pre>
+      <section class="card step-card" id="step-progress">
+        <div class="step-head">
+          <span class="step-index">Шаг 5</span>
+          <h2>Прогресс</h2>
+        </div>
+        <div class="button-row">
+          <button id="refreshProgress" type="button">Обновить прогресс</button>
+          <button id="refreshEvents" type="button" class="ghost-button">Обновить события</button>
+        </div>
+        <details class="debug-box">
+          <summary>Показать сырой ответ прогресса</summary>
+          <pre id="progressOutput" class="output"></pre>
+        </details>
+        <details class="debug-box">
+          <summary>Показать журнал событий</summary>
+          <pre id="eventsOutput" class="output"></pre>
+        </details>
       </section>
     </main>
+
+    <div class="agent-layer" aria-live="polite">
+      <div id="agentBubble" class="agent-bubble">Я живой лимон. Начнем с профиля.</div>
+      <div class="lemon-agent" id="lemonAgent">
+        <span class="agent-glow"></span>
+        <img id="lemonImage" src="/assets/limon/limonfoto1.png" alt="Лимон AI агент" loading="lazy" />
+        <video id="lemonVideo" class="lemon-video-hidden" muted playsinline preload="metadata"></video>
+      </div>
+    </div>
 
     <script src="/app.js"></script>
   </body>
