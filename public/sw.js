@@ -1,4 +1,4 @@
-const CACHE_NAME = "aisha-mvp-cache-v4";
+const CACHE_NAME = "aisha-mvp-cache-v5";
 const STATIC_ASSETS = ["/", "/index.html", "/styles.css", "/app.js", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

@@ -2,6 +2,8 @@ const state = {
   userId: localStorage.getItem("userId") || "",
   milestoneMemory: loadMilestoneMemory(),
   lastProgressResponse: null,
+  activeStep: localStorage.getItem("activeStep") || "step-onboard",
+  unlockedStepIds: ["step-onboard"],
   currentAnchor: "step-onboard",
   lastAutoMoveAt: 0,
   lastEmotionImage: ""
@@ -53,6 +55,21 @@ const STEP_ORDER = [
   "step-progress"
 ];
 
+const STEP_MOOD_BY_STEP = {
+  "step-onboard": "idle",
+  "step-plan": "guide",
+  "step-meal": "focus",
+  "step-subscription": "guide",
+  "step-progress": "win"
+};
+
+const LEADERBOARD_RIVALS = [
+  { name: "Citrus Flash", score: 340 },
+  { name: "Mint Rocket", score: 290 },
+  { name: "Nova Bee", score: 245 },
+  { name: "Pulse Fox", score: 210 }
+];
+
 const STEP_HINTS = {
   "step-onboard": "Создай профиль, чтобы я рассчитал тебе игровой маршрут.",
   "step-plan": "Теперь генерируем план питания. Это даст первые XP.",
@@ -65,6 +82,16 @@ const el = {
   healthBadge: document.getElementById("healthBadge"),
   providerBadge: document.getElementById("providerBadge"),
   activeUserBadge: document.getElementById("activeUserBadge"),
+  stepNav: document.getElementById("stepNav"),
+  menuSteps: Array.from(document.querySelectorAll(".menu-step[data-step-target]")),
+  questSteps: Array.from(document.querySelectorAll(".quest-step")),
+  missionTitle: document.getElementById("missionTitle"),
+  missionText: document.getElementById("missionText"),
+  missionAction: document.getElementById("missionAction"),
+  journeyPercent: document.getElementById("journeyPercent"),
+  journeyFill: document.getElementById("journeyFill"),
+  journeyHint: document.getElementById("journeyHint"),
+  leaderboardList: document.getElementById("leaderboardList"),
   statLevel: document.getElementById("statLevel"),
   statStreak: document.getElementById("statStreak"),
   statPoints: document.getElementById("statPoints"),
@@ -184,6 +211,122 @@ function getNextStepFromQuests(quests) {
     return "step-subscription";
   }
   return "step-progress";
+}
+
+function getStepNode(stepId) {
+  return document.getElementById(stepId);
+}
+
+function getStepTitle(stepId) {
+  const node = getStepNode(stepId);
+  return (node && node.dataset.stepTitle) || "Текущий шаг";
+}
+
+function getStepCallToAction(stepId) {
+  const node = getStepNode(stepId);
+  return (node && node.dataset.stepCta) || STEP_HINTS[stepId] || STEP_HINTS["step-onboard"];
+}
+
+function getUnlockedStepsFromQuests(quests) {
+  const nextStep = getNextStepFromQuests(quests);
+  const nextIndex = Math.max(0, STEP_ORDER.indexOf(nextStep));
+  return STEP_ORDER.slice(0, nextIndex + 1);
+}
+
+function setUnlockedSteps(stepIds) {
+  const normalized = STEP_ORDER.filter((stepId) => stepIds.includes(stepId));
+  state.unlockedStepIds = normalized.length ? normalized : ["step-onboard"];
+
+  for (const button of el.menuSteps) {
+    const target = button.dataset.stepTarget;
+    const unlocked = state.unlockedStepIds.includes(target);
+    button.disabled = !unlocked;
+    button.classList.toggle("is-locked", !unlocked);
+  }
+}
+
+function renderJourney(quests, nextStep) {
+  const total = quests.length || 1;
+  const completed = quests.filter((quest) => quest.done).length;
+  const percent = Math.round((completed / total) * 100);
+  el.journeyPercent.textContent = `${percent}%`;
+  el.journeyFill.style.width = `${percent}%`;
+  el.journeyHint.textContent = getStepCallToAction(nextStep);
+}
+
+function renderLeaderboard(model) {
+  const me = {
+    name: (model.user && model.user.name ? model.user.name : "Вы"),
+    score:
+      Number(model.points || 0) +
+      Number(model.streak || 0) * 14 +
+      Number(model.achievements.length || 0) * 24 +
+      Number(model.planGeneratedCount || 0) * 8,
+    isUser: true
+  };
+
+  const rows = [...LEADERBOARD_RIVALS, me].sort((a, b) => b.score - a.score);
+  const top = rows.slice(0, 5);
+  if (!top.some((row) => row.isUser)) {
+    top[top.length - 1] = me;
+  }
+
+  el.leaderboardList.innerHTML = "";
+  top.forEach((row, index) => {
+    const item = document.createElement("li");
+    item.className = `leaderboard-row${row.isUser ? " is-user" : ""}`;
+    item.innerHTML = `
+      <span class="leader-rank">${index + 1}</span>
+      <span>
+        <strong class="leader-name">${row.name}</strong>
+        <small class="leader-score">${row.isUser ? "ваш результат" : "игрок лиги"}</small>
+      </span>
+      <strong>${row.score} XP</strong>
+    `;
+    el.leaderboardList.appendChild(item);
+  });
+}
+
+function setActiveStep(stepId, options = {}) {
+  const { force = false } = options;
+  if (!STEP_ORDER.includes(stepId)) {
+    return;
+  }
+  if (!force && !state.unlockedStepIds.includes(stepId)) {
+    return;
+  }
+
+  state.activeStep = stepId;
+  localStorage.setItem("activeStep", stepId);
+
+  for (const section of el.questSteps) {
+    const isActive = section.id === stepId;
+    section.hidden = !isActive;
+    section.classList.toggle("is-active", isActive);
+  }
+
+  for (const button of el.menuSteps) {
+    button.classList.toggle("is-active", button.dataset.stepTarget === stepId);
+  }
+
+  el.missionTitle.textContent = getStepTitle(stepId);
+  el.missionText.textContent = getStepCallToAction(stepId);
+}
+
+function focusCurrentStepAction() {
+  const section = getStepNode(state.activeStep);
+  if (!section) {
+    return;
+  }
+  if (state.activeStep === "step-progress") {
+    refreshProgress("progress");
+    refreshEvents();
+  }
+  section.scrollIntoView({ behavior: "smooth", block: "start" });
+  const control = section.querySelector("input, textarea, select, button");
+  if (control) {
+    control.focus();
+  }
 }
 
 function computeLevel(points) {
@@ -402,7 +545,13 @@ function findClosestStepInView() {
 function syncAgentFromProgress(progressResponse, reason = "progress") {
   const { model, quests } = renderGameCenter(progressResponse);
   const nextStep = getNextStepFromQuests(quests);
+  const unlockedSteps = getUnlockedStepsFromQuests(quests);
   const mood = getMoodByReason(reason, model, nextStep);
+
+  setUnlockedSteps(unlockedSteps);
+  setActiveStep(nextStep, { force: true });
+  renderJourney(quests, nextStep);
+  renderLeaderboard(model);
 
   const speechByReason = {
     onboard: "Профиль создан. Отлично, теперь генерируем первый план.",
@@ -444,11 +593,16 @@ async function loadHealthAndConfig() {
 
 async function refreshProgress(reason = "progress") {
   if (!state.userId) {
-    el.progressOutput.textContent = "Профиль еще не создан.";
-    renderGameCenter(null);
+    el.progressOutput.textContent = "Profile has not been created yet.";
+    const { model, quests } = renderGameCenter(null);
+    setUnlockedSteps(["step-onboard"]);
+    setActiveStep("step-onboard", { force: true });
+    renderJourney(quests, "step-onboard");
+    renderLeaderboard(model);
     placeAgentAt("step-onboard", {
       mood: "idle",
-      speech: "Начнем с простого шага: создай профиль."
+      speech: "Start with step one: create your profile.",
+      emotionKey: "empty:onboard"
     });
     return;
   }
@@ -568,33 +722,28 @@ el.refreshProgress.addEventListener("click", () => refreshProgress("progress"));
 el.refreshEvents.addEventListener("click", refreshEvents);
 el.lemonVideo.addEventListener("ended", hideLemonVideo);
 el.lemonVideo.addEventListener("error", hideLemonVideo);
-
-let scrollTimer = null;
-window.addEventListener(
-  "scroll",
-  () => {
-    if (scrollTimer) {
+for (const button of el.menuSteps) {
+  button.addEventListener("click", () => {
+    const stepId = button.dataset.stepTarget;
+    setActiveStep(stepId);
+    if (state.activeStep !== stepId) {
       return;
     }
-    scrollTimer = window.setTimeout(() => {
-      scrollTimer = null;
-      if (Date.now() - state.lastAutoMoveAt < 900) {
-        return;
-      }
-      const nearStep = findClosestStepInView();
-      placeAgentAt(nearStep, {
-        mood: "guide",
-        speech: STEP_HINTS[nearStep]
-      });
-    }, 180);
-  },
-  { passive: true }
-);
+    placeAgentAt(stepId, {
+      mood: STEP_MOOD_BY_STEP[stepId] || "guide",
+      speech: getStepCallToAction(stepId),
+      emotionKey: `menu:${stepId}:${Date.now()}`
+    });
+  });
+}
+
+el.missionAction.addEventListener("click", focusCurrentStepAction);
 
 window.addEventListener("resize", () => {
-  placeAgentAt(state.currentAnchor, {
-    mood: "guide",
-    speech: STEP_HINTS[state.currentAnchor]
+  placeAgentAt(state.activeStep, {
+    mood: STEP_MOOD_BY_STEP[state.activeStep] || "guide",
+    speech: getStepCallToAction(state.activeStep),
+    emotionKey: `resize:${state.activeStep}`
   });
 });
 
@@ -625,10 +774,15 @@ if ("serviceWorker" in navigator) {
 
 setActiveUser(state.userId);
 hideLemonVideo();
-renderGameCenter(null);
-placeAgentAt("step-onboard", {
-  mood: "idle",
-  speech: "Я живой AI-агент. Давай начнем с профиля."
+const bootstrap = renderGameCenter(null);
+setUnlockedSteps(["step-onboard"]);
+renderJourney(bootstrap.quests, "step-onboard");
+renderLeaderboard(bootstrap.model);
+setActiveStep("step-onboard", { force: true });
+placeAgentAt(state.activeStep, {
+  mood: STEP_MOOD_BY_STEP[state.activeStep] || "idle",
+  speech: getStepCallToAction(state.activeStep),
+  emotionKey: `boot:${state.activeStep}`
 });
 loadHealthAndConfig();
 refreshProgress("progress");

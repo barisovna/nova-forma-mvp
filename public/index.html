@@ -26,6 +26,31 @@
         </div>
       </header>
 
+      <nav class="card native-menu" id="stepNav" aria-label="Маршрут квеста">
+        <button type="button" class="menu-step is-active" data-step-target="step-onboard">1. Профиль</button>
+        <button type="button" class="menu-step" data-step-target="step-plan">2. План</button>
+        <button type="button" class="menu-step" data-step-target="step-meal">3. Лог еды</button>
+        <button type="button" class="menu-step" data-step-target="step-subscription">4. Тариф</button>
+        <button type="button" class="menu-step" data-step-target="step-progress">5. Прогресс</button>
+      </nav>
+
+      <section class="card mission-card" id="missionCard">
+        <p class="mission-tag">Текущая миссия</p>
+        <h2 id="missionTitle">Шаг 1. Создайте профиль</h2>
+        <p id="missionText">Заполните имя, цель и калории. Лимон откроет следующий шаг.</p>
+        <div class="journey-wrap">
+          <div class="journey-meta">
+            <span>Шкала прохождения</span>
+            <strong id="journeyPercent">0%</strong>
+          </div>
+          <div class="journey-track">
+            <div class="journey-fill" id="journeyFill"></div>
+          </div>
+          <p class="journey-hint" id="journeyHint">Начинаем путь с профиля.</p>
+        </div>
+        <button type="button" id="missionAction">Открыть текущий шаг</button>
+      </section>
+
       <section class="card game-card" id="step-game">
         <h2>Игровой центр</h2>
         <div class="stats-grid">
@@ -59,7 +84,20 @@
         <ul class="quest-list" id="questList"></ul>
       </section>
 
-      <section class="card step-card" id="step-onboard">
+      <section class="card leaderboard-card" id="step-leaderboard">
+        <div class="leaderboard-head">
+          <h2>Доска результатов</h2>
+          <span class="leaderboard-live">live</span>
+        </div>
+        <ol class="leaderboard-list" id="leaderboardList"></ol>
+      </section>
+
+      <section
+        class="card step-card quest-step"
+        id="step-onboard"
+        data-step-title="Шаг 1. Создайте профиль"
+        data-step-cta="Заполните анкету и нажмите кнопку, чтобы открыть шаг 2."
+      >
         <div class="step-head">
           <span class="step-index">Шаг 1</span>
           <h2>Онбординг</h2>
@@ -81,7 +119,12 @@
         </form>
       </section>
 
-      <section class="card step-card" id="step-plan">
+      <section
+        class="card step-card quest-step"
+        id="step-plan"
+        data-step-title="Шаг 2. Сгенерируйте план"
+        data-step-cta="Опишите предпочтения и запустите генерацию первого плана."
+      >
         <div class="step-head">
           <span class="step-index">Шаг 2</span>
           <h2>План питания</h2>
@@ -103,7 +146,12 @@
         </details>
       </section>
 
-      <section class="card step-card" id="step-meal">
+      <section
+        class="card step-card quest-step"
+        id="step-meal"
+        data-step-title="Шаг 3. Добавьте первый прием пищи"
+        data-step-cta="Добавьте блюдо и калории, чтобы начать серию и набрать очки."
+      >
         <div class="step-head">
           <span class="step-index">Шаг 3</span>
           <h2>Лог питания</h2>
@@ -125,7 +173,12 @@
         </form>
       </section>
 
-      <section class="card step-card" id="step-subscription">
+      <section
+        class="card step-card quest-step"
+        id="step-subscription"
+        data-step-title="Шаг 4. Выберите тариф"
+        data-step-cta="Выберите тариф и сохраните, чтобы закрыть квест подписки."
+      >
         <div class="step-head">
           <span class="step-index">Шаг 4</span>
           <h2>Подписка</h2>
@@ -143,7 +196,12 @@
         </form>
       </section>
 
-      <section class="card step-card" id="step-progress">
+      <section
+        class="card step-card quest-step"
+        id="step-progress"
+        data-step-title="Шаг 5. Проверьте прогресс"
+        data-step-cta="Обновите прогресс и события, чтобы увидеть результат прохождения."
+      >
         <div class="step-head">
           <span class="step-index">Шаг 5</span>
           <h2>Прогресс</h2>
