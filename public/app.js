@@ -493,7 +493,7 @@ function buildQuests(model) {
 function getNextStepFromQuests(quests) {
   if (!quests[0].done) return "step-onboard";
   if (!quests[1].done) return "step-plan";
-  if (!quests[2].done || !quests[3].done) return "step-meal";
+  if (!quests[2].done) return "step-meal";
   if (!quests[4].done) return "step-subscription";
   return "step-progress";
 }

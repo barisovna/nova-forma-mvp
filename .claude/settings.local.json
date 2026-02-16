@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e:*)",
+      "Bash(curl:*)",
+      "Bash(USERID=\"f05f6b4a-a683-402f-a6e2-b1f3583b8435\":*)",
+      "Bash(python3 -m json.tool:*)",
+      "Bash(taskkill:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
