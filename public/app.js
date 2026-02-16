@@ -6,6 +6,15 @@ const state = {
   lastAutoMoveAt: 0
 };
 
+const IS_LOCAL = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+const DEV_MODE = IS_LOCAL || new URLSearchParams(location.search).get("dev") === "1";
+
+if (!DEV_MODE) {
+  document.querySelectorAll("[data-dev-only]").forEach((node) => {
+    node.hidden = true;
+  });
+}
+
 const LEMON_IMAGE_BY_MOOD = {
   idle: "/assets/limon/limonfoto1.png",
   guide: "/assets/limon/limonid3.png",
@@ -533,8 +542,7 @@ window.addEventListener("resize", () => {
 });
 
 if ("serviceWorker" in navigator) {
-  const isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-  if (isLocal) {
+  if (IS_LOCAL) {
     navigator.serviceWorker
       .getRegistrations()
       .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))

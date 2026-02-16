@@ -97,7 +97,7 @@
           </label>
           <button type="submit">Сгенерировать план</button>
         </form>
-        <details class="debug-box">
+        <details class="debug-box" data-dev-only>
           <summary>Показать сырой ответ плана</summary>
           <pre id="planOutput" class="output"></pre>
         </details>
@@ -152,11 +152,11 @@
           <button id="refreshProgress" type="button">Обновить прогресс</button>
           <button id="refreshEvents" type="button" class="ghost-button">Обновить события</button>
         </div>
-        <details class="debug-box">
+        <details class="debug-box" data-dev-only>
           <summary>Показать сырой ответ прогресса</summary>
           <pre id="progressOutput" class="output"></pre>
         </details>
-        <details class="debug-box">
+        <details class="debug-box" data-dev-only>
           <summary>Показать журнал событий</summary>
           <pre id="eventsOutput" class="output"></pre>
         </details>
