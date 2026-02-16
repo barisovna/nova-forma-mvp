@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f766e" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>Aisha Cross-Platform MVP</title>
+  </head>
+  <body>
+    <main class="container">
+      <header class="hero">
+        <h1>AishaDietBot MVP</h1>
+        <p>Тестовый кроссплатформенный запуск: Core API + PWA + геймификация.</p>
+      </header>
+
+      <section class="card status-card">
+        <h2>Статус</h2>
+        <div id="healthStatus">Проверка API...</div>
+        <div id="providerStatus"></div>
+        <div id="activeUser"></div>
+      </section>
+
+      <section class="card lemon-card">
+        <h2>Лимон-ведущий</h2>
+        <div class="lemon-layout">
+          <div class="lemon-media">
+            <img
+              id="lemonImage"
+              src="/assets/limon/limonfoto1.png"
+              alt="Лимон-аватар"
+              loading="lazy"
+            />
+            <video
+              id="lemonVideo"
+              class="lemon-video-hidden"
+              muted
+              playsinline
+              preload="metadata"
+            ></video>
+          </div>
+          <div class="lemon-panel">
+            <p id="lemonSpeech" class="lemon-speech">Я живой лимон. Давай начнем!</p>
+            <div id="lemonModeInfo" class="lemon-mode-info">
+              Режим: статичный аватар + реплики по прогрессу.
+            </div>
+            <div class="lemon-mode-list">
+              <span>Режимы:</span>
+              <span>1) Статичный лимон</span>
+              <span>2) Milestone-видео</span>
+              <span>3) Реплики по streak</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>1) Онбординг</h2>
+        <form id="onboardForm">
+          <label>
+            Имя
+            <input type="text" id="name" required placeholder="Например, Aisha" />
+          </label>
+          <label>
+            Цель
+            <input type="text" id="goal" placeholder="fat_loss / maintain / gain" />
+          </label>
+          <label>
+            Целевые ккал
+            <input type="number" id="caloriesTarget" min="800" max="5000" value="1900" />
+          </label>
+          <button type="submit">Создать профиль</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>2) Генерация плана</h2>
+        <form id="planForm">
+          <label>
+            Предпочтения
+            <textarea id="preferences" rows="3" placeholder="Без лактозы, больше белка..."></textarea>
+          </label>
+          <button type="submit">Сгенерировать план</button>
+        </form>
+        <pre id="planOutput" class="output"></pre>
+      </section>
+
+      <section class="card">
+        <h2>3) Лог питания</h2>
+        <form id="mealForm">
+          <label>
+            Прием пищи
+            <input type="text" id="mealName" required placeholder="Овсянка + йогурт" />
+          </label>
+          <label>
+            Ккал
+            <input type="number" id="mealCalories" min="0" max="5000" value="450" />
+          </label>
+          <label>
+            Дата (для теста streak)
+            <input type="date" id="mealDate" />
+          </label>
+          <button type="submit">Добавить лог</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>4) Подписка</h2>
+        <form id="subscriptionForm">
+          <label>
+            Тариф
+            <select id="subscriptionTier">
+              <option value="free">free</option>
+              <option value="trial" selected>trial</option>
+              <option value="premium">premium</option>
+            </select>
+          </label>
+          <button type="submit">Сохранить тариф</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Прогресс</h2>
+        <button id="refreshProgress" type="button">Обновить прогресс</button>
+        <pre id="progressOutput" class="output"></pre>
+      </section>
+
+      <section class="card">
+        <h2>Последние события</h2>
+        <button id="refreshEvents" type="button">Обновить события</button>
+        <pre id="eventsOutput" class="output"></pre>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

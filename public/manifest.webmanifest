@@ -1,0 +1,9 @@
+{
+  "name": "AishaDietBot Cross-Platform MVP",
+  "short_name": "AishaMVP",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f7f4",
+  "theme_color": "#0f766e",
+  "description": "Test MVP for gamified nutrition assistant"
+}

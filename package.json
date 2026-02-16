@@ -1,0 +1,16 @@
+{
+  "name": "aisha-cross-platform-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Test MVP for cross-platform gamified nutrition assistant",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node scripts/smoke-test.js",
+    "secret:scan": "node scripts/secret-scan.js",
+    "check": "npm run secret:scan && npm run test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
