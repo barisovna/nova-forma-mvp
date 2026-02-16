@@ -542,7 +542,19 @@ if ("serviceWorker" in navigator) {
       .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
       .catch(() => {});
   } else {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    let refreshedByServiceWorker = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshedByServiceWorker) {
+        return;
+      }
+      refreshedByServiceWorker = true;
+      location.reload();
+    });
+
+    navigator.serviceWorker
+      .register("/sw.js", { updateViaCache: "none" })
+      .then((registration) => registration.update())
+      .catch(() => {});
   }
 }
 
